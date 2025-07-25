@@ -1,0 +1,245 @@
+package tools
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"regexp"
+	"strings"
+	"time"
+
+	"ai-ops/internal/config"
+	"ai-ops/internal/util"
+)
+
+// WeatherTool 天气工具实现
+type WeatherTool struct {
+	name        string
+	description string
+	parameters  map[string]interface{}
+}
+
+// NewWeatherTool 创建天气工具实例
+func NewWeatherTool() *WeatherTool {
+	return &WeatherTool{
+		name:        "weather",
+		description: "查询指定地点的实时天气信息",
+		parameters: map[string]interface{}{
+			"type": "object",
+			"properties": map[string]interface{}{
+				"location": map[string]interface{}{
+					"type":        "string",
+					"description": "城市名称、LocationID或经纬度坐标（格式：116.41,39.92）",
+				},
+			},
+			"required": []string{"location"},
+		},
+	}
+}
+
+// Name 获取工具名称
+func (w *WeatherTool) Name() string {
+	return w.name
+}
+
+// Description 获取工具描述
+func (w *WeatherTool) Description() string {
+	return w.description
+}
+
+// Parameters 获取工具参数schema
+func (w *WeatherTool) Parameters() map[string]interface{} {
+	return w.parameters
+}
+
+// Execute 执行天气查询
+func (w *WeatherTool) Execute(ctx context.Context, args map[string]interface{}) (string, error) {
+	// 参数验证
+	location, ok := args["location"].(string)
+	if !ok || location == "" {
+		return "", util.NewError(util.ErrCodeInvalidParam, "缺少或无效的 location 参数")
+	}
+
+	util.Infow("开始执行天气工具", map[string]interface{}{
+		"location": location,
+	})
+
+	// 调用原有的天气查询逻辑
+	result, err := w.callWeatherAPI(ctx, location)
+	if err != nil {
+		util.LogErrorWithFields(err, "天气查询失败", map[string]interface{}{
+			"location": location,
+		})
+		return "", err
+	}
+
+	util.Infow("天气工具执行成功", map[string]interface{}{
+		"location":      location,
+		"result_length": len(result),
+	})
+
+	return result, nil
+}
+
+// callWeatherAPI 调用天气API（从原有代码移植）
+func (w *WeatherTool) callWeatherAPI(ctx context.Context, location string) (string, error) {
+	// 配置验证
+	if config.Config == nil {
+		return "", util.NewError(util.ErrCodeConfigNotFound, "系统配置未初始化")
+	}
+
+	apiHost := config.Config.Weather.ApiHost
+	apiKey := config.Config.Weather.ApiKey
+
+	if apiHost == "" || apiKey == "" {
+		return "", util.NewError(util.ErrCodeConfigInvalid, "天气API主机或密钥未配置")
+	}
+
+	client := &http.Client{Timeout: 8 * time.Second}
+	var locationID string
+	var err error
+
+	// 判断输入类型并获取LocationID
+	if w.isLocationIDOrLatLon(location) {
+		locationID = location
+		util.Infow("使用LocationID或经纬度", map[string]interface{}{"location_id": locationID})
+	} else {
+		locationID, err = w.queryLocationID(ctx, apiHost, apiKey, location, client)
+		if err != nil {
+			return "", err
+		}
+		util.Infow("城市ID查询成功", map[string]interface{}{"city": location, "location_id": locationID})
+	}
+
+	// 查询天气
+	weather, err := w.queryQWeatherNow(ctx, apiHost, apiKey, locationID, client)
+	if err != nil {
+		return "", err
+	}
+
+	// 构造响应
+	resp := map[string]interface{}{
+		"location":    location,
+		"location_id": locationID,
+		"weather":     weather,
+	}
+
+	jsonBytes, err := json.Marshal(resp)
+	if err != nil {
+		return "", util.WrapError(util.ErrCodeInternalErr, "结果序列化失败", err)
+	}
+
+	return string(jsonBytes), nil
+}
+
+// isLocationIDOrLatLon 校验 location 是否为 LocationID 或 经纬度
+func (w *WeatherTool) isLocationIDOrLatLon(location string) bool {
+	// LocationID: 全数字，通常为6位以上
+	idRe := regexp.MustCompile(`^\d{6,}$`)
+	// 经纬度: 116.41,39.92
+	latlonRe := regexp.MustCompile(`^-?\d{1,3}\.\d{1,6},-?\d{1,3}\.\d{1,6}$`)
+	return idRe.MatchString(location) || latlonRe.MatchString(location)
+}
+
+// queryLocationID 查询城市名称对应的 LocationID
+func (w *WeatherTool) queryLocationID(ctx context.Context, apiHost, apiKey, city string, client *http.Client) (string, error) {
+	urlStr := fmt.Sprintf("%s/geo/v2/city/lookup?location=%s", strings.TrimRight(apiHost, "/"), url.QueryEscape(city))
+
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return "", util.WrapError(util.ErrCodeNetworkFailed, "创建城市查询请求失败", err)
+	}
+
+	req.Header.Set("X-QW-Api-Key", apiKey)
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", util.WrapError(util.ErrCodeNetworkFailed, "城市查询请求失败", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return "", util.WrapError(util.ErrCodeNetworkFailed, "读取城市查询响应失败", err)
+	}
+
+	var lookup QWeatherCityLookupResp
+	if err := json.Unmarshal(body, &lookup); err != nil {
+		return "", util.WrapError(util.ErrCodeAIResponseInvalid, "城市查询响应解析失败", err)
+	}
+
+	if lookup.Code != "200" || len(lookup.Location) == 0 {
+		return "", util.NewErrorWithDetail(util.ErrCodeNotFound, "城市查询失败",
+			fmt.Sprintf("code=%s, body=%s", lookup.Code, string(body)))
+	}
+
+	return lookup.Location[0].ID, nil
+}
+
+// queryQWeatherNow 查询实时天气
+func (w *WeatherTool) queryQWeatherNow(ctx context.Context, apiHost, apiKey, location string, client *http.Client) (*QWeatherNowResp, error) {
+	urlStr := fmt.Sprintf("%s/v7/weather/now?location=%s", strings.TrimRight(apiHost, "/"), url.QueryEscape(location))
+
+	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
+	if err != nil {
+		return nil, util.WrapError(util.ErrCodeNetworkFailed, "创建天气查询请求失败", err)
+	}
+
+	req.Header.Set("X-QW-Api-Key", apiKey)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, util.WrapError(util.ErrCodeNetworkFailed, "天气查询请求失败", err)
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, util.WrapError(util.ErrCodeNetworkFailed, "读取天气查询响应失败", err)
+	}
+
+	var now QWeatherNowResp
+	if err := json.Unmarshal(body, &now); err != nil {
+		return nil, util.WrapError(util.ErrCodeAIResponseInvalid, "天气响应解析失败", err)
+	}
+
+	if now.Code != "200" {
+		return nil, util.NewErrorWithDetail(util.ErrCodeNotFound, "天气查询失败",
+			fmt.Sprintf("code=%s, body=%s", now.Code, string(body)))
+	}
+
+	return &now, nil
+}
+
+// 和风天气 API 响应结构体（从原有代码移植）
+type QWeatherNowResp struct {
+	Code string `json:"code"`
+	Now  struct {
+		ObsTime   string `json:"obsTime"`
+		Temp      string `json:"temp"`
+		FeelsLike string `json:"feelsLike"`
+		Text      string `json:"text"`
+		WindDir   string `json:"windDir"`
+		WindScale string `json:"windScale"`
+		Humidity  string `json:"humidity"`
+		Precip    string `json:"precip"`
+		Vis       string `json:"vis"`
+		Cloud     string `json:"cloud"`
+	} `json:"now"`
+	Refer struct {
+		Sources []string `json:"sources"`
+		License []string `json:"license"`
+	} `json:"refer"`
+}
+
+type QWeatherCityLookupResp struct {
+	Code     string `json:"code"`
+	Location []struct {
+		ID      string `json:"id"`
+		Name    string `json:"name"`
+		Adm1    string `json:"adm1"`
+		Adm2    string `json:"adm2"`
+		Country string `json:"country"`
+	} `json:"location"`
+}

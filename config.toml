@@ -1,0 +1,36 @@
+# AI-Ops 配置文件
+
+[ai]
+default_model = "gemini"
+timeout = 30
+
+[ai.models.gemini]
+type = "gemini"
+api_key = "${GEMINI_API_KEY}"
+base_url = "https://generativelanguage.googleapis.com"
+model = "gemini-pro"
+
+[ai.models.openai]
+type = "openai"
+api_key = "${OPENAI_API_KEY}"
+base_url = "https://api.openai.com"
+model = "gpt-3.5-turbo"
+
+[cli]
+history_size = 100
+prompt = "ai-ops> "
+exit_commands = ["exit", "quit", "q"]
+
+[tools]
+auto_register = true
+tool_paths = ["./tools"]
+
+[logging]
+level = "info"
+format = "text"
+output = "stdout"
+file = ""
+
+[weather]
+api_host = "https://devapi.qweather.com"
+api_key = "${QWEATHER_API_KEY}"
