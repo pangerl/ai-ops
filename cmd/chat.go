@@ -38,7 +38,17 @@ var chatCmd = &cobra.Command{
 			util.Infow("使用默认模型", map[string]interface{}{"model": client.GetModelInfo().Name})
 		}
 
-		chat.RunSimpleLoop(client)
+		// 初始化工具管理器
+		toolManager := chat.NewToolManager()
+
+		// 自动发现和注册工具
+		autoRegistry := chat.NewAutoToolRegistry("./internal/tools")
+		if err := autoRegistry.AutoRegisterTools(toolManager); err != nil {
+			util.Error(fmt.Sprintf("自动注册工具失败: %v", err))
+			return
+		}
+
+		chat.RunSimpleLoop(client, toolManager)
 
 		util.Info("对话模式已退出。")
 	},

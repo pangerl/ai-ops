@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"strings"
 	"time"
+
+	"ai-ops/internal/tools"
 )
 
 // OpenAIClient OpenAI AI 客户端实现
@@ -70,10 +72,10 @@ func NewOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 }
 
 // SendMessage 发送消息并获取响应
-func (c *OpenAIClient) SendMessage(ctx context.Context, message string, tools []Tool) (*Response, error) {
-	request := c.buildRequest(message, tools)
+func (c *OpenAIClient) SendMessage(ctx context.Context, message string, history []string, toolDefs []tools.ToolDefinition) (*Response, error) {
+	request := c.buildRequest(message, history, toolDefs)
 
-	endpoint := ""
+	endpoint := "/v1/chat/completions"
 
 	var response OpenAIResponse
 	err := c.httpClient.PostJSONWithRetry(ctx, endpoint, request, &response)
@@ -90,20 +92,22 @@ func (c *OpenAIClient) GetModelInfo() ModelInfo {
 }
 
 // buildRequest 构建 OpenAI API 请求
-func (c *OpenAIClient) buildRequest(message string, tools []Tool) *OpenAIRequest {
+func (c *OpenAIClient) buildRequest(message string, history []string, toolDefs []tools.ToolDefinition) *OpenAIRequest {
+	messages := make([]OpenAIMessage, 0, len(history)+1)
+	for _, msg := range history {
+		// 简单的历史消息处理，可以根据需要扩展
+		messages = append(messages, OpenAIMessage{Role: "user", Content: msg})
+	}
+	messages = append(messages, OpenAIMessage{Role: "user", Content: message})
+
 	request := &OpenAIRequest{
-		Model: c.modelInfo.Name,
-		Messages: []OpenAIMessage{
-			{
-				Role:    "user",
-				Content: message,
-			},
-		},
+		Model:    c.modelInfo.Name,
+		Messages: messages,
 	}
 
 	// 添加工具定义
-	if len(tools) > 0 {
-		request.Tools = c.convertToolsToOpenAITools(tools)
+	if len(toolDefs) > 0 {
+		request.Tools = c.convertToolsToOpenAITools(toolDefs)
 		request.ToolChoice = "auto"
 	}
 
@@ -111,10 +115,10 @@ func (c *OpenAIClient) buildRequest(message string, tools []Tool) *OpenAIRequest
 }
 
 // convertToolsToOpenAITools 将工具定义转换为 OpenAI 工具格式
-func (c *OpenAIClient) convertToolsToOpenAITools(tools []Tool) []OpenAITool {
-	openaiTools := make([]OpenAITool, len(tools))
+func (c *OpenAIClient) convertToolsToOpenAITools(toolDefs []tools.ToolDefinition) []OpenAITool {
+	openaiTools := make([]OpenAITool, len(toolDefs))
 
-	for i, tool := range tools {
+	for i, tool := range toolDefs {
 		openaiTools[i] = OpenAITool{
 			Type: "function",
 			Function: OpenAIFunction{
