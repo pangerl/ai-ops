@@ -7,6 +7,7 @@ import (
 
 	"ai-ops/internal/ai"
 	"ai-ops/internal/tools"
+	"ai-ops/internal/util"
 )
 
 // Session 管理一个独立的对话会话
@@ -44,6 +45,10 @@ func (s *Session) ProcessMessage(ctx context.Context, userInput string) (string,
 			return "", fmt.Errorf("failed to send message to AI: %w", err)
 		}
 
+		// 调试：打印完整的 AI 响应
+		respBytes, _ := json.Marshal(resp)
+		util.Infow("收到 AI 响应", map[string]any{"response": string(respBytes)})
+
 		// 将 AI 的响应（不含工具调用）添加到历史记录
 		aiResponseMsg := ai.Message{
 			Role:      "assistant",
@@ -52,12 +57,8 @@ func (s *Session) ProcessMessage(ctx context.Context, userInput string) (string,
 		}
 		s.messages = append(s.messages, aiResponseMsg)
 
-		// 根据 finish_reason 决定下一步操作
-		switch resp.FinishReason {
-		case "stop":
-			// 对话完成，返回最终内容
-			return resp.Content, nil
-		case "tool_calls":
+		// 检查是否有工具调用需要执行
+		if len(resp.ToolCalls) > 0 {
 			// 需要调用工具
 			toolResults, err := s.executeTools(ctx, resp.ToolCalls)
 			if err != nil {
@@ -65,8 +66,24 @@ func (s *Session) ProcessMessage(ctx context.Context, userInput string) (string,
 			}
 			// 将工具结果添加到历史记录中，然后继续循环
 			s.messages = append(s.messages, toolResults...)
+			continue // 继续循环以获取最终的 AI 响应
+		}
+
+		// 如果没有工具调用，则根据 finish_reason 决定下一步操作
+		switch resp.FinishReason {
+		case "stop":
+			// 对话完成，返回最终内容
+			return resp.Content, nil
+		case "tool_calls":
+			// 这种情况不应该发生，因为我们已经处理了工具调用
+			// 但为了健壮性，我们返回一个错误
+			return "", fmt.Errorf("unexpected state: finish_reason is 'tool_calls' but no tool calls were found")
 		default:
-			// 未知的 finish_reason
+			// 对于 Gemini，"STOP" 是一个有效的完成原因，即使没有工具调用
+			if s.client.GetModelInfo().Type == "gemini" && resp.FinishReason == "STOP" {
+				return resp.Content, nil
+			}
+			// 其他未知的 finish_reason
 			return "", fmt.Errorf("unexpected finish_reason: %s", resp.FinishReason)
 		}
 	}

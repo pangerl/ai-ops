@@ -76,7 +76,7 @@ func (c *AIHTTPClient) Post(ctx context.Context, endpoint string, payload interf
 
 	// 设置默认请求头
 	req.Header.Set("Content-Type", "application/json")
-	// req.Header.Set("User-Agent", "ai-ops/1.0")
+	req.Header.Set("User-Agent", "ai-ops/1.0")
 
 	// 设置自定义请求头
 	for key, value := range c.headers {

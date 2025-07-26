@@ -159,9 +159,15 @@ func (cm *ClientManager) CreateClientFromConfig(name string, config ModelConfig)
 	var client AIClient
 	var err error
 
-	// 所有模型类型都通过 OpenAI 兼容的客户端创建
-	// config.Type 字段可以用于日志记录或未来的扩展，但创建逻辑是统一的
-	client, err = NewOpenAIClient(config)
+	switch config.Type {
+	case "gemini":
+		client, err = NewGeminiClient(config)
+	case "openai":
+		client, err = NewOpenAIClient(config)
+	default:
+		return NewAIError(ErrCodeModelNotSupported, fmt.Sprintf("unsupported model type: %s", config.Type), nil)
+	}
+
 	if err != nil {
 		return NewAIError(ErrCodeClientCreationFailed, fmt.Sprintf("failed to create client for '%s'", name), err)
 	}
