@@ -75,7 +75,7 @@ func NewOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 func (c *OpenAIClient) SendMessage(ctx context.Context, message string, history []string, toolDefs []tools.ToolDefinition) (*Response, error) {
 	request := c.buildRequest(message, history, toolDefs)
 
-	endpoint := "/v1/chat/completions"
+	endpoint := ""
 
 	var response OpenAIResponse
 	err := c.httpClient.PostJSONWithRetry(ctx, endpoint, request, &response)

@@ -1,17 +1,16 @@
 package ai
 
 import (
+	"ai-ops/internal/tools"
 	"context"
 	"fmt"
 	"time"
-
-	"ai-ops/internal/chat"
 )
 
 // AIClient 定义 AI 模型客户端接口
 type AIClient interface {
 	// SendMessage 发送消息并获取响应
-	SendMessage(ctx context.Context, message string, history []string, toolDefs []chat.ToolDefinition) (*Response, error)
+	SendMessage(ctx context.Context, message string, history []string, toolDefs []tools.ToolDefinition) (*Response, error)
 
 	// GetModelInfo 获取模型信息
 	GetModelInfo() ModelInfo
@@ -172,7 +171,7 @@ func (cm *ClientManager) SwitchToClient(name string) error {
 }
 
 // SendMessageWithFallback 发送消息，支持故障转移
-func (cm *ClientManager) SendMessageWithFallback(ctx context.Context, message string, history []string, toolDefs []chat.ToolDefinition) (*Response, error) {
+func (cm *ClientManager) SendMessageWithFallback(ctx context.Context, message string, history []string, toolDefs []tools.ToolDefinition) (*Response, error) {
 	// 首先尝试默认客户端
 	defaultClient := cm.GetDefaultClient()
 	if defaultClient != nil {
@@ -200,7 +199,7 @@ func (cm *ClientManager) SendMessageWithFallback(ctx context.Context, message st
 }
 
 // sendMessageWithRetry 带重试的消息发送
-func (cm *ClientManager) sendMessageWithRetry(ctx context.Context, client AIClient, message string, history []string, toolDefs []chat.ToolDefinition) (*Response, error) {
+func (cm *ClientManager) sendMessageWithRetry(ctx context.Context, client AIClient, message string, history []string, toolDefs []tools.ToolDefinition) (*Response, error) {
 	if !cm.retryConfig.Enabled {
 		return client.SendMessage(ctx, message, history, toolDefs)
 	}
@@ -315,92 +314,4 @@ type ClientStatus struct {
 	IsDefault bool   `json:"is_default"`
 }
 
-// ModelSwitcher 模型切换器
-type ModelSwitcher struct {
-	clientManager *ClientManager
-	switchHistory []SwitchRecord
-}
-
-// SwitchRecord 切换记录
-type SwitchRecord struct {
-	FromClient string    `json:"from_client"`
-	ToClient   string    `json:"to_client"`
-	Reason     string    `json:"reason"`
-	Timestamp  time.Time `json:"timestamp"`
-}
-
-// NewModelSwitcher 创建模型切换器
-func NewModelSwitcher(clientManager *ClientManager) *ModelSwitcher {
-	return &ModelSwitcher{
-		clientManager: clientManager,
-		switchHistory: make([]SwitchRecord, 0),
-	}
-}
-
-// SwitchModel 切换模型
-func (ms *ModelSwitcher) SwitchModel(toClient, reason string) error {
-	currentDefault := ms.clientManager.defaultClient
-
-	err := ms.clientManager.SwitchToClient(toClient)
-	if err != nil {
-		return err
-	}
-
-	// 记录切换历史
-	record := SwitchRecord{
-		FromClient: currentDefault,
-		ToClient:   toClient,
-		Reason:     reason,
-		Timestamp:  time.Now(),
-	}
-
-	ms.switchHistory = append(ms.switchHistory, record)
-
-	// 保持历史记录不超过100条
-	if len(ms.switchHistory) > 100 {
-		ms.switchHistory = ms.switchHistory[1:]
-	}
-
-	return nil
-}
-
-// GetSwitchHistory 获取切换历史
-func (ms *ModelSwitcher) GetSwitchHistory() []SwitchRecord {
-	return ms.switchHistory
-}
-
-// AutoSwitch 自动切换（基于错误类型）
-func (ms *ModelSwitcher) AutoSwitch(err error) error {
-	if !ms.shouldAutoSwitch(err) {
-		return nil
-	}
-
-	// 获取所有可用客户端
-	clients := ms.clientManager.ListClients()
-	currentDefault := ms.clientManager.defaultClient
-
-	// 尝试切换到其他健康的客户端
-	for _, clientName := range clients {
-		if clientName != currentDefault {
-			status, statusErr := ms.clientManager.GetClientStatus(clientName)
-			if statusErr == nil && status.Healthy {
-				return ms.SwitchModel(clientName, fmt.Sprintf("auto switch due to error: %s", err.Error()))
-			}
-		}
-	}
-
-	return NewAIError(ErrCodeClientNotFound, "no healthy clients available for auto switch", err)
-}
-
-// shouldAutoSwitch 判断是否应该自动切换
-func (ms *ModelSwitcher) shouldAutoSwitch(err error) bool {
-	if aiErr, ok := err.(*AIError); ok {
-		switch aiErr.Code {
-		case ErrCodeNetworkFailed, ErrCodeTimeout, ErrCodeRateLimited:
-			return true
-		default:
-			return false
-		}
-	}
-	return false
-}
+// 删除了ModelSwitcher相关代码，简化客户端管理

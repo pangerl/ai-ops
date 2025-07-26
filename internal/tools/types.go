@@ -2,7 +2,6 @@ package tools
 
 import (
 	"context"
-	"time"
 )
 
 // Tool 工具接口定义
@@ -14,30 +13,22 @@ type Tool interface {
 	Description() string
 
 	// Parameters 获取工具参数schema
-	Parameters() map[string]interface{}
+	Parameters() map[string]any
 
 	// Execute 执行工具
-	Execute(ctx context.Context, args map[string]interface{}) (string, error)
+	Execute(ctx context.Context, args map[string]any) (string, error)
 }
 
 // ToolDefinition 工具定义结构
 type ToolDefinition struct {
-	Name        string                 `json:"name"`        // 工具名称
-	Description string                 `json:"description"` // 工具描述
-	Parameters  map[string]interface{} `json:"parameters"`  // 参数schema
-}
-
-// ToolResult 工具执行结果
-type ToolResult struct {
-	Success       bool          `json:"success"`          // 执行是否成功
-	Result        string        `json:"result,omitempty"` // 执行结果
-	Error         string        `json:"error,omitempty"`  // 错误信息
-	ExecutionTime time.Duration `json:"execution_time"`   // 执行时间
+	Name        string         `json:"name"`        // 工具名称
+	Description string         `json:"description"` // 工具描述
+	Parameters  map[string]any `json:"parameters"`  // 参数schema
 }
 
 // ToolCall 工具调用结构
 type ToolCall struct {
-	ID        string                 `json:"id"`        // 调用ID
-	Name      string                 `json:"name"`      // 工具名称
-	Arguments map[string]interface{} `json:"arguments"` // 调用参数
+	ID        string         `json:"id"`        // 调用ID
+	Name      string         `json:"name"`      // 工具名称
+	Arguments map[string]any `json:"arguments"` // 调用参数
 }

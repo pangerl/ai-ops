@@ -12,7 +12,6 @@ var versionCmd = &cobra.Command{
 	Short: "显示版本信息",
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("AI-Ops v1.0.0")
-		fmt.Println("构建时间: 2024-01-01")
 	},
 }
 

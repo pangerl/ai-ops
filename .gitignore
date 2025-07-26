@@ -31,3 +31,4 @@ go.work.sum
 .idea/
 .vscode/
 local-config.toml
+ai-ops

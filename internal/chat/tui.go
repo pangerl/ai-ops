@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"ai-ops/internal/ai"
+	"ai-ops/internal/tools"
 	"ai-ops/internal/util"
 
 	"github.com/briandowns/spinner"
@@ -16,7 +17,7 @@ import (
 )
 
 // RunSimpleLoop 启动一个简单的交互式对话循环
-func RunSimpleLoop(client ai.AIClient, toolManager ToolManager) {
+func RunSimpleLoop(client ai.AIClient, toolManager tools.ToolManager) {
 	scanner := bufio.NewScanner(os.Stdin)
 	userColor := color.New(color.FgGreen).Add(color.Bold)
 	aiColor := color.New(color.FgCyan)
@@ -69,16 +70,16 @@ func RunSimpleLoop(client ai.AIClient, toolManager ToolManager) {
 
 		if len(response.ToolCalls) > 0 {
 			toolColor.Println("工具调用:")
-			executor := NewToolExecutor(toolManager)
+			// 直接使用toolManager执行工具
 			for _, tc := range response.ToolCalls {
 				toolColor.Printf("  - 名称: %s, 参数: %v\n", tc.Name, tc.Arguments)
 
 				// 执行工具
-				result, err := executor.ExecuteWithRetry(ctx, ToolCall{
+				result, err := toolManager.ExecuteToolCall(ctx, tools.ToolCall{
 					ID:        "call_" + util.RandomString(8),
 					Name:      tc.Name,
 					Arguments: tc.Arguments,
-				}, 3)
+				})
 
 				if err != nil {
 					errorColor.Printf("    工具执行失败: %v\n", err)

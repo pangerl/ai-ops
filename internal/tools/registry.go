@@ -41,7 +41,7 @@ func (r *ToolRegistry) RegisterTool(tool Tool) error {
 	}
 
 	r.tools[name] = tool
-	util.Infow("工具注册成功", map[string]interface{}{
+	util.Infow("工具注册成功", map[string]any{
 		"tool_name":   name,
 		"description": tool.Description(),
 	})
@@ -112,24 +112,9 @@ func (r *ToolRegistry) UnregisterTool(name string) error {
 	}
 
 	delete(r.tools, name)
-	util.Infow("工具注销成功", map[string]interface{}{
+	util.Infow("工具注销成功", map[string]any{
 		"tool_name": name,
 	})
 
 	return nil
-}
-
-// Count 获取已注册工具数量
-func (r *ToolRegistry) Count() int {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-	return len(r.tools)
-}
-
-// HasTool 检查工具是否存在
-func (r *ToolRegistry) HasTool(name string) bool {
-	r.mutex.RLock()
-	defer r.mutex.RUnlock()
-	_, exists := r.tools[name]
-	return exists
 }

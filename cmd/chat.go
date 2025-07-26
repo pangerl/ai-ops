@@ -7,6 +7,7 @@ import (
 
 	"ai-ops/internal/ai"
 	"ai-ops/internal/chat"
+	"ai-ops/internal/tools"
 	"ai-ops/internal/util"
 )
 
@@ -28,23 +29,23 @@ var chatCmd = &cobra.Command{
 				util.Error(fmt.Sprintf("指定的模型 '%s' 不存在或未正确配置。", modelName))
 				return
 			}
-			util.Infow("已切换到指定模型", map[string]interface{}{"model": modelName})
+			util.Infow("已切换到指定模型", map[string]any{"model": modelName})
 		} else {
 			client = aiManager.GetDefaultClient()
 			if client == nil {
 				util.Error("没有可用的AI客户端。请检查您的配置。")
 				return
 			}
-			util.Infow("使用默认模型", map[string]interface{}{"model": client.GetModelInfo().Name})
+			util.Infow("使用默认模型", map[string]any{"model": client.GetModelInfo().Name})
 		}
 
 		// 初始化工具管理器
-		toolManager := chat.NewToolManager()
+		toolManager := tools.NewToolManager()
 
-		// 自动发现和注册工具
-		autoRegistry := chat.NewAutoToolRegistry("./internal/tools")
-		if err := autoRegistry.AutoRegisterTools(toolManager); err != nil {
-			util.Error(fmt.Sprintf("自动注册工具失败: %v", err))
+		// 加载插件工具
+		pluginLoader := tools.NewPluginLoader("./internal/tools/plugins")
+		if err := pluginLoader.LoadPlugins(toolManager); err != nil {
+			util.Error(fmt.Sprintf("加载插件工具失败: %v", err))
 			return
 		}
 

@@ -63,7 +63,7 @@ func (m *DefaultToolManager) ExecuteToolCall(ctx context.Context, call ToolCall)
 	startTime := time.Now()
 
 	// 记录工具调用开始
-	util.Infow("开始执行工具调用", map[string]interface{}{
+	util.Infow("开始执行工具调用", map[string]any{
 		"tool_name": call.Name,
 		"call_id":   call.ID,
 		"arguments": call.Arguments,
@@ -72,7 +72,7 @@ func (m *DefaultToolManager) ExecuteToolCall(ctx context.Context, call ToolCall)
 	// 获取工具
 	tool, err := m.registry.GetTool(call.Name)
 	if err != nil {
-		util.LogErrorWithFields(err, "工具获取失败", map[string]interface{}{
+		util.LogErrorWithFields(err, "工具获取失败", map[string]any{
 			"tool_name": call.Name,
 			"call_id":   call.ID,
 		})
@@ -85,7 +85,7 @@ func (m *DefaultToolManager) ExecuteToolCall(ctx context.Context, call ToolCall)
 
 	if err != nil {
 		// 记录执行失败
-		util.LogErrorWithFields(err, "工具执行失败", map[string]interface{}{
+		util.LogErrorWithFields(err, "工具执行失败", map[string]any{
 			"tool_name":      call.Name,
 			"call_id":        call.ID,
 			"execution_time": executionTime,
@@ -98,7 +98,7 @@ func (m *DefaultToolManager) ExecuteToolCall(ctx context.Context, call ToolCall)
 	}
 
 	// 记录执行成功
-	util.Infow("工具执行成功", map[string]interface{}{
+	util.Infow("工具执行成功", map[string]any{
 		"tool_name":      call.Name,
 		"call_id":        call.ID,
 		"execution_time": executionTime,
@@ -106,26 +106,4 @@ func (m *DefaultToolManager) ExecuteToolCall(ctx context.Context, call ToolCall)
 	})
 
 	return result, nil
-}
-
-// ExecuteToolCallWithResult 执行工具调用并返回详细结果
-func (m *DefaultToolManager) ExecuteToolCallWithResult(ctx context.Context, call ToolCall) *ToolResult {
-	startTime := time.Now()
-
-	result, err := m.ExecuteToolCall(ctx, call)
-	executionTime := time.Since(startTime)
-
-	if err != nil {
-		return &ToolResult{
-			Success:       false,
-			Error:         err.Error(),
-			ExecutionTime: executionTime,
-		}
-	}
-
-	return &ToolResult{
-		Success:       true,
-		Result:        result,
-		ExecutionTime: executionTime,
-	}
 }
