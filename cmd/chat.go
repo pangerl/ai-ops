@@ -8,6 +8,7 @@ import (
 	"ai-ops/internal/ai"
 	"ai-ops/internal/chat"
 	"ai-ops/internal/tools"
+	_ "ai-ops/internal/tools/plugins" // 匿名导入以触发插件注册
 	"ai-ops/internal/util"
 )
 

@@ -40,6 +40,9 @@ func NewToolManager() ToolManager {
 
 // RegisterTool 注册工具
 func (m *DefaultToolManager) RegisterTool(tool Tool) error {
+	util.Infow("注册工具", map[string]any{
+		"tool_name": tool.Name(),
+	})
 	return m.registry.RegisterTool(tool)
 }
 

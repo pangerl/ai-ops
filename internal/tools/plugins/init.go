@@ -13,9 +13,13 @@
 package plugins
 
 import (
+	"ai-ops/internal/tools"
 	"ai-ops/internal/util"
 )
 
 func init() {
-	util.Debug("插件包初始化完成")
+	util.Debug("正在注册插件...")
+	tools.RegisterPluginFactory("echo", NewEchoTool)
+	tools.RegisterPluginFactory("weather", NewWeatherTool)
+	util.Debug("插件注册完成")
 }

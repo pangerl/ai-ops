@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"ai-ops/internal/tools"
+	"ai-ops/internal/util"
 )
 
 // OpenAIClient OpenAI AI 客户端实现
@@ -75,10 +76,21 @@ func NewOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 func (c *OpenAIClient) SendMessage(ctx context.Context, message string, history []string, toolDefs []tools.ToolDefinition) (*Response, error) {
 	request := c.buildRequest(message, history, toolDefs)
 
+	// 序列化请求体以进行日志记录
+	requestBody, err := json.Marshal(request)
+	if err != nil {
+		util.LogErrorWithFields(err, "序列化 OpenAI 请求失败", nil)
+		// 即使序列化失败，也继续尝试发送请求
+	} else {
+		util.Infow("发送 OpenAI 请求", map[string]any{
+			"request_body": string(requestBody),
+		})
+	}
+	// base_url 已经包含完整的 api 请求地址，不需要传递endpoint，保持为空
 	endpoint := ""
 
 	var response OpenAIResponse
-	err := c.httpClient.PostJSONWithRetry(ctx, endpoint, request, &response)
+	err = c.httpClient.PostJSONWithRetry(ctx, endpoint, request, &response)
 	if err != nil {
 		return nil, err
 	}
