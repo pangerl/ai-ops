@@ -88,14 +88,8 @@ func (w *WeatherTool) callWeatherAPI(ctx context.Context, location string) (stri
 		return "", err
 	}
 
-	// 构造响应
-	resp := map[string]any{
-		"location":    location,
-		"location_id": locationID,
-		"weather":     weather,
-	}
-
-	jsonBytes, err := json.Marshal(resp)
+	// 直接序列化返回的天气信息
+	jsonBytes, err := json.Marshal(weather)
 	if err != nil {
 		return "", util.WrapError(util.ErrCodeInternalErr, "结果序列化失败", err)
 	}
@@ -147,7 +141,7 @@ func (w *WeatherTool) queryLocationID(ctx context.Context, apiHost, apiKey, city
 }
 
 // queryQWeatherNow 查询实时天气
-func (w *WeatherTool) queryQWeatherNow(ctx context.Context, apiHost, apiKey, location string, client *http.Client) (*QWeatherNowResp, error) {
+func (w *WeatherTool) queryQWeatherNow(ctx context.Context, apiHost, apiKey, location string, client *http.Client) (*QWeatherNow, error) {
 	urlStr := fmt.Sprintf("%s/v7/weather/now?location=%s", strings.TrimRight(apiHost, "/"), url.QueryEscape(location))
 
 	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
@@ -167,34 +161,37 @@ func (w *WeatherTool) queryQWeatherNow(ctx context.Context, apiHost, apiKey, loc
 		return nil, util.WrapError(util.ErrCodeNetworkFailed, "读取天气查询响应失败", err)
 	}
 
-	var now QWeatherNowResp
-	if err := json.Unmarshal(body, &now); err != nil {
+	var res QWeatherNowResp
+	if err := json.Unmarshal(body, &res); err != nil {
 		return nil, util.WrapError(util.ErrCodeAIResponseInvalid, "天气响应解析失败", err)
 	}
 
-	if now.Code != "200" {
+	if res.Code != "200" {
 		return nil, util.NewErrorWithDetail(util.ErrCodeNotFound, "天气查询失败",
-			fmt.Sprintf("code=%s, body=%s", now.Code, string(body)))
+			fmt.Sprintf("code=%s, body=%s", res.Code, string(body)))
 	}
 
-	return &now, nil
+	return &res.Now, nil
+}
+
+// QWeatherNow 实时天气数据
+type QWeatherNow struct {
+	ObsTime   string `json:"obsTime"`
+	Temp      string `json:"temp"`
+	FeelsLike string `json:"feelsLike"`
+	Text      string `json:"text"`
+	WindDir   string `json:"windDir"`
+	WindScale string `json:"windScale"`
+	Humidity  string `json:"humidity"`
+	Precip    string `json:"precip"`
+	Vis       string `json:"vis"`
+	Cloud     string `json:"cloud"`
 }
 
 // 和风天气 API 响应结构体
 type QWeatherNowResp struct {
-	Code string `json:"code"`
-	Now  struct {
-		ObsTime   string `json:"obsTime"`
-		Temp      string `json:"temp"`
-		FeelsLike string `json:"feelsLike"`
-		Text      string `json:"text"`
-		WindDir   string `json:"windDir"`
-		WindScale string `json:"windScale"`
-		Humidity  string `json:"humidity"`
-		Precip    string `json:"precip"`
-		Vis       string `json:"vis"`
-		Cloud     string `json:"cloud"`
-	} `json:"now"`
+	Code  string      `json:"code"`
+	Now   QWeatherNow `json:"now"`
 	Refer struct {
 		Sources []string `json:"sources"`
 		License []string `json:"license"`
