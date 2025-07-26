@@ -41,7 +41,7 @@ func NewGeminiClient(config ModelConfig) (*GeminiClient, error) {
 
 	modelName := config.Model
 	if modelName == "" {
-		modelName = "gemini-pro"
+		modelName = "gemini-2.5-flash"
 	}
 
 	maxTokens := 8192 // gemini-pro 的默认值

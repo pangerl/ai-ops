@@ -39,7 +39,7 @@ func NewOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 
 	modelName := config.Model
 	if modelName == "" {
-		modelName = "gpt-3.5-turbo"
+		modelName = "gpt-4o-mini"
 	}
 
 	// 根据模型名称设置最大令牌数

@@ -15,8 +15,6 @@ var Config *AppConfig
 // 应用配置结构
 type AppConfig struct {
 	AI      AIConfig      `toml:"ai"`
-	CLI     CLIConfig     `toml:"cli"`
-	Tools   ToolsConfig   `toml:"tools"`
 	Logging LoggingConfig `toml:"logging"`
 	Weather WeatherConfig `toml:"weather"`
 }
@@ -34,19 +32,6 @@ type ModelConfig struct {
 	APIKey  string `toml:"api_key"`
 	BaseURL string `toml:"base_url"`
 	Model   string `toml:"model"`
-}
-
-// CLI配置
-type CLIConfig struct {
-	HistorySize  int      `toml:"history_size"`
-	Prompt       string   `toml:"prompt"`
-	ExitCommands []string `toml:"exit_commands"`
-}
-
-// 工具配置
-type ToolsConfig struct {
-	AutoRegister bool     `toml:"auto_register"`
-	ToolPaths    []string `toml:"tool_paths"`
 }
 
 // 日志配置
@@ -141,15 +126,6 @@ api_key = "${OPENAI_API_KEY}"
 base_url = "https://api.openai.com"
 model = "gpt-3.5-turbo"
 
-[cli]
-history_size = 100
-prompt = "ai-ops> "
-exit_commands = ["exit", "quit", "q"]
-
-[tools]
-auto_register = true
-tool_paths = ["./tools"]
-
 [logging]
 level = "info"
 format = "text"
@@ -231,15 +207,6 @@ func validateConfig(config *AppConfig) error {
 	}
 	if !levelValid {
 		return fmt.Errorf("无效的日志级别: %s", config.Logging.Level)
-	}
-
-	// 验证CLI配置
-	if config.CLI.HistorySize <= 0 {
-		config.CLI.HistorySize = 100 // 设置默认值
-	}
-
-	if config.CLI.Prompt == "" {
-		config.CLI.Prompt = "ai-ops> " // 设置默认提示符
 	}
 
 	return nil

@@ -7,7 +7,7 @@ timeout = 30
 [ai.models.gemini]
 type = "gemini"
 api_key = "${GEMINI_API_KEY}"
-base_url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+base_url = "https://generativelanguage.googleapis.com/v1beta"
 model = "gemini-2.5-flash"
 
 [ai.models.openai]
@@ -15,15 +15,6 @@ type = "openai"
 api_key = "${OPENAI_API_KEY}"
 base_url = "https://api.openai.com/v1/chat/completions"
 model = "gpt-4o-mini"
-
-[cli]
-history_size = 100
-prompt = "ai-ops> "
-exit_commands = ["exit", "quit", "q"]
-
-[tools]
-auto_register = true
-tool_paths = ["./tools"]
 
 [logging]
 level = "info"
