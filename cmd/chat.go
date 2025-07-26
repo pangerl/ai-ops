@@ -42,11 +42,18 @@ var chatCmd = &cobra.Command{
 		// 初始化工具管理器
 		toolManager := tools.NewToolManager()
 
-		// 加载插件工具
-		pluginLoader := tools.NewPluginLoader("./internal/tools/plugins")
-		if err := pluginLoader.LoadPlugins(toolManager); err != nil {
-			util.Error(fmt.Sprintf("加载插件工具失败: %v", err))
-			return
+		// 从插件注册表中创建所有自动注册的工具
+		pluginTools := tools.CreatePluginTools()
+
+		// 将插件工具注册到管理器
+		for _, tool := range pluginTools {
+			if err := toolManager.RegisterTool(tool); err != nil {
+				// 仅记录警告，而不是中止程序
+				util.Warnw("注册工具失败，已跳过", map[string]any{
+					"tool_name": tool.Name(),
+					"error":     err.Error(),
+				})
+			}
 		}
 
 		chat.RunSimpleLoop(client, toolManager)
