@@ -7,10 +7,19 @@ import (
 	"time"
 )
 
+// Message 代表一个对话消息
+type Message struct {
+	Role       string     `json:"role"` // "user", "assistant", or "tool"
+	Content    string     `json:"content"`
+	Name       string     `json:"name,omitempty"` // The name of the tool that was called
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string     `json:"tool_call_id,omitempty"` // Only for role="tool"
+}
+
 // AIClient 定义 AI 模型客户端接口
 type AIClient interface {
 	// SendMessage 发送消息并获取响应
-	SendMessage(ctx context.Context, message string, history []string, toolDefs []tools.ToolDefinition) (*Response, error)
+	SendMessage(ctx context.Context, messages []Message, toolDefs []tools.ToolDefinition) (*Response, error)
 
 	// GetModelInfo 获取模型信息
 	GetModelInfo() ModelInfo
@@ -18,9 +27,10 @@ type AIClient interface {
 
 // Response AI 响应结构
 type Response struct {
-	Content   string     `json:"content"`
-	ToolCalls []ToolCall `json:"tool_calls,omitempty"`
-	Usage     TokenUsage `json:"usage"`
+	Content      string     `json:"content"`
+	ToolCalls    []ToolCall `json:"tool_calls,omitempty"`
+	Usage        TokenUsage `json:"usage"`
+	FinishReason string     `json:"finish_reason"`
 }
 
 // ToolCall 工具调用结构
@@ -171,11 +181,11 @@ func (cm *ClientManager) SwitchToClient(name string) error {
 }
 
 // SendMessageWithFallback 发送消息，支持故障转移
-func (cm *ClientManager) SendMessageWithFallback(ctx context.Context, message string, history []string, toolDefs []tools.ToolDefinition) (*Response, error) {
+func (cm *ClientManager) SendMessageWithFallback(ctx context.Context, messages []Message, toolDefs []tools.ToolDefinition) (*Response, error) {
 	// 首先尝试默认客户端
 	defaultClient := cm.GetDefaultClient()
 	if defaultClient != nil {
-		response, err := cm.sendMessageWithRetry(ctx, defaultClient, message, history, toolDefs)
+		response, err := cm.sendMessageWithRetry(ctx, defaultClient, messages, toolDefs)
 		if err == nil {
 			return response, nil
 		}
@@ -184,7 +194,7 @@ func (cm *ClientManager) SendMessageWithFallback(ctx context.Context, message st
 		if cm.shouldFallback(err) {
 			for name, client := range cm.clients {
 				if name != cm.defaultClient {
-					response, fallbackErr := cm.sendMessageWithRetry(ctx, client, message, history, toolDefs)
+					response, fallbackErr := cm.sendMessageWithRetry(ctx, client, messages, toolDefs)
 					if fallbackErr == nil {
 						return response, nil
 					}
@@ -199,9 +209,9 @@ func (cm *ClientManager) SendMessageWithFallback(ctx context.Context, message st
 }
 
 // sendMessageWithRetry 带重试的消息发送
-func (cm *ClientManager) sendMessageWithRetry(ctx context.Context, client AIClient, message string, history []string, toolDefs []tools.ToolDefinition) (*Response, error) {
+func (cm *ClientManager) sendMessageWithRetry(ctx context.Context, client AIClient, messages []Message, toolDefs []tools.ToolDefinition) (*Response, error) {
 	if !cm.retryConfig.Enabled {
-		return client.SendMessage(ctx, message, history, toolDefs)
+		return client.SendMessage(ctx, messages, toolDefs)
 	}
 
 	var lastErr error
@@ -215,7 +225,7 @@ func (cm *ClientManager) sendMessageWithRetry(ctx context.Context, client AIClie
 			}
 		}
 
-		response, err := client.SendMessage(ctx, message, history, toolDefs)
+		response, err := client.SendMessage(ctx, messages, toolDefs)
 		if err == nil {
 			return response, nil
 		}
@@ -275,7 +285,8 @@ func (cm *ClientManager) GetClientStatus(name string) (*ClientStatus, error) {
 	var lastError string
 
 	// 发送一个简单的测试消息来检查健康状态
-	_, err := client.SendMessage(ctx, "ping", nil, nil)
+	testMessage := []Message{{Role: "user", Content: "ping"}}
+	_, err := client.SendMessage(ctx, testMessage, nil)
 	if err != nil {
 		healthy = false
 		lastError = err.Error()

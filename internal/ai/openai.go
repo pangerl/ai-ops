@@ -73,8 +73,8 @@ func NewOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 }
 
 // SendMessage 发送消息并获取响应
-func (c *OpenAIClient) SendMessage(ctx context.Context, message string, history []string, toolDefs []tools.ToolDefinition) (*Response, error) {
-	request := c.buildRequest(message, history, toolDefs)
+func (c *OpenAIClient) SendMessage(ctx context.Context, messages []Message, toolDefs []tools.ToolDefinition) (*Response, error) {
+	request := c.buildRequest(messages, toolDefs)
 
 	// 序列化请求体以进行日志记录
 	requestBody, err := json.Marshal(request)
@@ -104,17 +104,28 @@ func (c *OpenAIClient) GetModelInfo() ModelInfo {
 }
 
 // buildRequest 构建 OpenAI API 请求
-func (c *OpenAIClient) buildRequest(message string, history []string, toolDefs []tools.ToolDefinition) *OpenAIRequest {
-	messages := make([]OpenAIMessage, 0, len(history)+1)
-	for _, msg := range history {
-		// 简单的历史消息处理，可以根据需要扩展
-		messages = append(messages, OpenAIMessage{Role: "user", Content: msg})
+func (c *OpenAIClient) buildRequest(messages []Message, toolDefs []tools.ToolDefinition) *OpenAIRequest {
+	openaiMessages := make([]OpenAIMessage, len(messages))
+	for i, msg := range messages {
+		// 这部分需要根据 Message 结构转换为 OpenAIMessage
+		// 这里只是一个基础的转换
+		openaiMsg := OpenAIMessage{
+			Role:    msg.Role,
+			Content: msg.Content,
+		}
+		if msg.Role == "tool" {
+			openaiMsg.ToolCallID = msg.ToolCallID
+			openaiMsg.Name = msg.Name
+		}
+		if len(msg.ToolCalls) > 0 {
+			openaiMsg.ToolCalls = c.convertToolCallsToOpenAIToolCalls(msg.ToolCalls)
+		}
+		openaiMessages[i] = openaiMsg
 	}
-	messages = append(messages, OpenAIMessage{Role: "user", Content: message})
 
 	request := &OpenAIRequest{
 		Model:    c.modelInfo.Name,
-		Messages: messages,
+		Messages: openaiMessages,
 	}
 
 	// 添加工具定义
@@ -144,6 +155,23 @@ func (c *OpenAIClient) convertToolsToOpenAITools(toolDefs []tools.ToolDefinition
 	return openaiTools
 }
 
+// convertToolCallsToOpenAIToolCalls 将工具调用转换为 OpenAI 工具调用格式
+func (c *OpenAIClient) convertToolCallsToOpenAIToolCalls(toolCalls []ToolCall) []OpenAIToolCall {
+	openaiToolCalls := make([]OpenAIToolCall, len(toolCalls))
+	for i, tc := range toolCalls {
+		argsBytes, _ := json.Marshal(tc.Arguments)
+		openaiToolCalls[i] = OpenAIToolCall{
+			ID:   tc.ID,
+			Type: "function",
+			Function: OpenAIFunctionCall{
+				Name:      tc.Name,
+				Arguments: string(argsBytes),
+			},
+		}
+	}
+	return openaiToolCalls
+}
+
 // parseResponse 解析 OpenAI 响应
 func (c *OpenAIClient) parseResponse(response *OpenAIResponse) (*Response, error) {
 	if len(response.Choices) == 0 {
@@ -153,7 +181,8 @@ func (c *OpenAIClient) parseResponse(response *OpenAIResponse) (*Response, error
 	choice := response.Choices[0]
 
 	result := &Response{
-		Content: choice.Message.Content,
+		Content:      choice.Message.Content,
+		FinishReason: choice.FinishReason,
 		Usage: TokenUsage{
 			PromptTokens:     response.Usage.PromptTokens,
 			CompletionTokens: response.Usage.CompletionTokens,
@@ -194,9 +223,11 @@ type OpenAIRequest struct {
 
 // OpenAIMessage 消息结构
 type OpenAIMessage struct {
-	Role      string           `json:"role"`
-	Content   string           `json:"content"`
-	ToolCalls []OpenAIToolCall `json:"tool_calls,omitempty"`
+	Role       string           `json:"role"`
+	Content    string           `json:"content"`
+	ToolCalls  []OpenAIToolCall `json:"tool_calls,omitempty"`
+	ToolCallID string           `json:"tool_call_id,omitempty"`
+	Name       string           `json:"name,omitempty"`
 }
 
 // OpenAITool 工具定义

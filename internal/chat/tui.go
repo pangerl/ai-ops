@@ -10,7 +10,6 @@ import (
 
 	"ai-ops/internal/ai"
 	"ai-ops/internal/tools"
-	"ai-ops/internal/util"
 
 	"github.com/briandowns/spinner"
 	"github.com/fatih/color"
@@ -22,11 +21,12 @@ func RunSimpleLoop(client ai.AIClient, toolManager tools.ToolManager) {
 	userColor := color.New(color.FgGreen).Add(color.Bold)
 	aiColor := color.New(color.FgCyan)
 	aiResponseColor := color.New(color.FgHiWhite)
-	toolColor := color.New(color.FgYellow)
 	errorColor := color.New(color.FgRed)
 
 	fmt.Println("欢迎来到AI对话模式。输入 'exit' 或 'quit' 退出。")
 	fmt.Println("---------------------------------------------------")
+
+	session := NewSession(client, toolManager)
 
 	for {
 		userColor.Print("You: ")
@@ -54,40 +54,16 @@ func RunSimpleLoop(client ai.AIClient, toolManager tools.ToolManager) {
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 		defer cancel()
 
-		// 获取工具定义
-		toolDefs := toolManager.GetToolDefinitions()
+		finalResponse, err := session.ProcessMessage(ctx, userInput)
+		s.Stop()
 
-		response, err := client.SendMessage(ctx, userInput, nil, toolDefs)
 		if err != nil {
-			s.Stop()
-			errorColor.Printf("调用AI失败: %v\n", err)
+			errorColor.Printf("处理消息失败: %v\n", err)
 			continue
 		}
 
-		s.Stop()
 		aiColor.Println("AI:")
-		fmt.Println(aiResponseColor.Sprint(response.Content))
-
-		if len(response.ToolCalls) > 0 {
-			toolColor.Println("工具调用:")
-			// 直接使用toolManager执行工具
-			for _, tc := range response.ToolCalls {
-				toolColor.Printf("  - 名称: %s, 参数: %v\n", tc.Name, tc.Arguments)
-
-				// 执行工具
-				result, err := toolManager.ExecuteToolCall(ctx, tools.ToolCall{
-					ID:        "call_" + util.RandomString(8),
-					Name:      tc.Name,
-					Arguments: tc.Arguments,
-				})
-
-				if err != nil {
-					errorColor.Printf("    工具执行失败: %v\n", err)
-				} else {
-					toolColor.Printf("    结果: %s\n", result)
-				}
-			}
-		}
+		fmt.Println(aiResponseColor.Sprint(finalResponse))
 		fmt.Println("---------------------------------------------------")
 	}
 }
