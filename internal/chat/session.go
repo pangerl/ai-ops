@@ -15,6 +15,7 @@ type Session struct {
 	toolManager tools.ToolManager
 	messages    []ai.Message
 	toolDefs    []tools.ToolDefinition
+	maxHistory  int // 最大历史记录条数
 }
 
 // NewSession 创建一个新的对话会话
@@ -24,6 +25,7 @@ func NewSession(client ai.AIClient, toolManager tools.ToolManager) *Session {
 		toolManager: toolManager,
 		messages:    make([]ai.Message, 0),
 		toolDefs:    toolManager.GetToolDefinitions(),
+		maxHistory:  10, // 默认保留最近10条消息
 	}
 }
 
@@ -33,6 +35,7 @@ func (s *Session) ProcessMessage(ctx context.Context, userInput string) (string,
 	s.messages = append(s.messages, ai.Message{Role: "user", Content: userInput})
 
 	for {
+		s.trimHistory()
 		// 发送消息到 AI
 		resp, err := s.client.SendMessage(ctx, s.messages, s.toolDefs)
 		if err != nil {
@@ -67,6 +70,21 @@ func (s *Session) ProcessMessage(ctx context.Context, userInput string) (string,
 			return "", fmt.Errorf("unexpected finish_reason: %s", resp.FinishReason)
 		}
 	}
+}
+
+// trimHistory 修剪历史记录，以防止其无限增长
+func (s *Session) trimHistory() {
+	if len(s.messages) <= s.maxHistory {
+		return
+	}
+
+	// 保留第一条消息（通常是初始提示或重要上下文）和最近的 maxHistory-1 条消息
+	firstMessage := s.messages[0]
+	recentMessages := s.messages[len(s.messages)-(s.maxHistory-1):]
+
+	s.messages = make([]ai.Message, 0, s.maxHistory)
+	s.messages = append(s.messages, firstMessage)
+	s.messages = append(s.messages, recentMessages...)
 }
 
 // executeTools 执行工具调用并返回结果消息
