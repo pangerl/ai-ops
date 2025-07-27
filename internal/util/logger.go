@@ -1,8 +1,6 @@
 package util
 
 import (
-	"crypto/rand"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"log"
@@ -311,14 +309,4 @@ func InitLogger(level, format, output, file string) error {
 
 	DefaultLogger = NewLogger(logLevel, format, writer, enableColor)
 	return nil
-}
-
-// RandomString 生成指定长度的随机十六进制字符串
-func RandomString(length int) string {
-	bytes := make([]byte, length)
-	if _, err := rand.Read(bytes); err != nil {
-		// 在加密安全的随机数生成失败时，回退到一个不那么安全但仍然随机的源
-		return "fallback"
-	}
-	return hex.EncodeToString(bytes)
 }
