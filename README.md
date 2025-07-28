@@ -5,7 +5,8 @@ AI-Ops 是一个基于 Go 开发的智能运维命令行工具，旨在将大型
 ## ✨ 功能特性
 
 - **交互式对话**：通过 `chat` 命令，可以与配置的 AI 模型（如 OpenAI GPT、Google Gemini）进行交互式对话。
-- **强大的工具系统**：支持通过插件扩展工具集，AI 可以在对话中根据上下文智能调用这些工具来完成特定任务（例如查询天气、获取监控信息等）。
+- **强大的工具系统**：支持通过插件扩展工具集，AI 可以在对话中根据上下文智能调用这些工具来完成特定任务（例如查询天气、系统监控、获取系统信息等）。
+- **系统监控能力**：内置系统信息工具，可以实时获取 CPU、内存、磁盘使用情况以及高资源占用进程信息。
 - **多模型支持**：支持同时配置多个 AI 大模型，并可以在对话中轻松切换，适配 Openai、Gemini。
 - **灵活的配置**：通过一个简单的 TOML 文件进行所有配置，包括 AI 模型、API 密钥、日志等。
 - **可扩展性**：基于 Go 语言开发，性能优异，且易于二次开发和功能扩展。
@@ -62,6 +63,8 @@ file = ""           # 如果 output 设置为 file，则需要指定日志文件
 [weather]
 api_host = "https://devapi.qweather.com"
 api_key = "${QWEATHER_API_KEY}" # 和风天气API Key
+
+# 系统信息工具无需额外配置，开箱即用
 ```
 
 ### 4. 运行
@@ -90,13 +93,25 @@ AI-Ops 框架初始化完成
 正在启动交互式对话模式...
 使用默认模型: openai
 你好！有什么可以帮助你的吗？
-> 今天北京天气怎么样？
 
+> 今天北京天气怎么样？
 AI 正在思考...
 AI 正在调用工具: weather({"location":"北京"})
 AI 正在处理工具返回结果...
-
 根据最新的天气数据，北京市当前天气为晴，气温25℃，体感温度26℃，微风。
+
+> 帮我查看一下系统的CPU和内存使用情况
+AI 正在思考...
+AI 正在调用工具: sysinfo({"action":"cpu"})
+AI 正在处理工具返回结果...
+AI 正在调用工具: sysinfo({"action":"memory"})
+AI 正在处理工具返回结果...
+
+当前系统状态：
+- CPU使用率：35.96%，Apple M2 处理器，8核心
+- CPU占用最高的进程：Google Chrome Helper (93.90%)
+- 内存使用率：62.00%，总内存16.00GB，已用9.92GB
+- 内存占用最高的进程：Google Chrome Helper (845.28MB)
 ```
 
 ## 🔧 如何开发
@@ -107,7 +122,22 @@ AI 正在处理工具返回结果...
 2.  实现 `tools.Tool` 接口（`Name`, `Description`, `Parameters`, `Execute`）。
 3.  在 `internal/tools/plugins/init.go` 文件中的 `init()` 函数里注册你的新工具。
 
-可以参考 `internal/tools/plugins/echo_tool.go` 作为实现示例。
+可以参考 `internal/tools/plugins/echo_tool.go` 或 `internal/tools/plugins/sysinfo_tool.go` 作为实现示例。
+
+### 内置工具
+
+AI-Ops 目前内置了以下工具：
+
+- **echo**: 回显工具，用于测试和调试
+- **weather**: 天气查询工具，支持查询全球城市天气信息
+- **sysinfo**: 系统信息工具，支持以下功能：
+  - `cpu`: 获取CPU信息和使用率前3的进程
+  - `memory`: 获取内存信息和使用率前3的进程  
+  - `disk`: 获取磁盘使用情况（可指定路径）
+  - `all`: 获取所有系统信息
+
+系统信息工具基于 `github.com/shirou/gopsutil/v4` 库实现，支持跨平台运行，无需额外配置即可使用。
+
 更多工具详细请点击：[工具](docs/tools.md)
 
 ### 项目结构

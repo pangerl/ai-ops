@@ -21,5 +21,6 @@ func init() {
 	util.Debug("正在注册插件...")
 	tools.RegisterPluginFactory("echo", NewEchoTool)
 	tools.RegisterPluginFactory("weather", NewWeatherTool)
+	tools.RegisterPluginFactory("sysinfo", NewSysInfoTool)
 	util.Debug("插件注册完成")
 }
