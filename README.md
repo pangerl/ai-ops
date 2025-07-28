@@ -6,7 +6,7 @@ AI-Ops 是一个基于 Go 开发的智能运维命令行工具，旨在将大型
 
 - **交互式对话**：通过 `chat` 命令，可以与配置的 AI 模型（如 OpenAI GPT、Google Gemini）进行交互式对话。
 - **强大的工具系统**：支持通过插件扩展工具集，AI 可以在对话中根据上下文智能调用这些工具来完成特定任务（例如查询天气、获取监控信息等）。
-- **多模型支持**：支持同时配置多个 AI 大模型，并可以在对话中轻松切换。
+- **多模型支持**：支持同时配置多个 AI 大模型，并可以在对话中轻松切换，适配 Openai、Gemini。
 - **灵活的配置**：通过一个简单的 TOML 文件进行所有配置，包括 AI 模型、API 密钥、日志等。
 - **可扩展性**：基于 Go 语言开发，性能优异，且易于二次开发和功能扩展。
 
@@ -107,7 +107,8 @@ AI 正在处理工具返回结果...
 2.  实现 `tools.Tool` 接口（`Name`, `Description`, `Parameters`, `Execute`）。
 3.  在 `internal/tools/plugins/init.go` 文件中的 `init()` 函数里注册你的新工具。
 
-可以参考 `internal/tools/plugins/weather_tool.go` 作为实现示例。
+可以参考 `internal/tools/plugins/echo_tool.go` 作为实现示例。
+更多工具详细请点击：[工具](docs/tools.md)
 
 ### 项目结构
 
