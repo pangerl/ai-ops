@@ -1,128 +1,94 @@
+
 # AI-Ops
 
-AI-Ops 是一个基于 Go 开发的智能运维命令行工具，旨在将大型语言模型（LLM）的能力与自动化运维任务相结合。它提供了一个灵活的框架，可以通过插件扩展其功能，实现与 AI 的交互式对话、调用外部工具和执行自动化运维脚本。
+AI-Ops 是一个基于 Go 的智能运维命令行工具，聚合大语言模型（LLM）能力与自动化运维场景，助力高效、智能的运维对话与工具调用。
 
-## ✨ 功能特性
+---
 
-- **交互式对话**：通过 `chat` 命令，可以与配置的 AI 模型（如 OpenAI GPT、Google Gemini）进行交互式对话。
-- **强大的工具系统**：支持通过插件扩展工具集，AI 可以在对话中根据上下文智能调用这些工具来完成特定任务（例如查询天气、获取监控信息等）。
-- **多模型支持**：支持同时配置多个 AI 大模型，并可以在对话中轻松切换。
-- **灵活的配置**：通过一个简单的 TOML 文件进行所有配置，包括 AI 模型、API 密钥、日志等。
-- **可扩展性**：基于 Go 语言开发，性能优异，且易于二次开发和功能扩展。
 
-## 🚀 快速开始
+## ✨ 主要功能
 
-### 1. 先决条件
+- **对话式运维**：通过命令行与 AI 进行自然语言交互，支持多轮上下文。
+- **智能工具调用**：AI 可根据对话内容自动调用插件工具，完成如天气查询、监控、自动化脚本等任务。
+- **多模型支持**：可无缝切换 OpenAI、Gemini 等主流大模型。
+- **工具扩展能力**：支持自定义 Go 插件，轻松扩展工具能力。
 
-- [Go](https://golang.org/dl/) (1.21 或更高版本)
-- Git
+---
+## 功能演示
 
-### 2. 克隆与编译
+向 AI 询问问题，并自动调用工具查询天气，调用 RAG 知识库召回数据。
 
-```bash
-# 克隆项目
-git clone https://github.com/pangerl/ai-ops.git
-cd ai-ops
+![聊天演示](.github/readme/ai_ops.gif)
 
-# 编译项目
-go build -o ai-ops .
-```
+---
+## 🛠️ 内置与可扩展工具
 
-### 3. 创建配置文件
+AI-Ops 内置了多种常用工具，AI 可在对话中自动调用：
 
-在项目根目录创建一个 `config.toml` 文件，并填入您的配置。
+- **echo**：回显测试工具，主要用于插件开发调试。
+- **weather**：天气查询工具，支持自然语言提问如“北京天气怎么样”。
+- **RAG**：知识检索增强（Retrieval Augmented Generation），可用于文档问答等。
 
-```toml
-# config.toml 示例
+你可以根据实际需求，参考示例快速开发并注册自定义工具插件，AI 会自动识别和调用。
 
-# AI 相关配置
-[ai]
-default_model = "gemini"  # 默认使用的AI模型
-timeout = 30              # AI请求超时时间（秒）
+> **工具扩展说明**：
+>
+> - 所有工具均以插件形式注册，开发者可在 `internal/tools/plugins/` 目录下添加新工具。
+> - 只需实现标准接口并注册，AI 即可在对话中自动发现和调用。
+> - 详细开发教程见 [docs/插件开发.md](docs/插件开发.md) 或 `weather_tool.go` 示例。
 
-# 配置多个AI模型
-[ai.models.gemini]
-type = "gemini"
-api_key = "${GEMINI_API_KEY}" # 支持从环境变量读取
-model = "gemini-1.5-flash"
+---
 
-[ai.models.openai]
-type = "openai"
-api_key = "${OPENAI_API_KEY}"
-model = "gpt-4o-mini"
+## 🚀 使用指南
 
-# 日志配置
-[logging]
-level = "info"      # 日志级别 (debug, info, warn, error)
-format = "text"     # 日志格式 (text, json)
-output = "stdout"   # 日志输出 (stdout, stderr, file)
-file = ""           # 如果 output 设置为 file，则需要指定日志文件路径
+1. **启动对话**
 
-# 天气工具的特定配置
-[weather]
-api_host = "https://devapi.qweather.com"
-api_key = "${QWEATHER_API_KEY}" # 和风天气API Key
-```
+   ```bash
+   ./ai-ops chat
+   ```
 
-### 4. 运行
+2. **与 AI 交互**
 
-完成编译和配置后，您可以开始使用 `ai-ops`。
+   - 直接输入你的问题或需求，AI 会自动理解并回复。
+   - 如需调用工具（如天气、监控等），直接用自然语言描述即可。
 
-```bash
-# 查看帮助信息
-./ai-ops --help
+   示例：
+   ```
+   > 今天北京天气怎么样？
+   AI 正在思考...
+   AI 正在调用工具: weather({"location":"北京"})
+   ...
+   北京市当前天气为晴，气温25℃，体感温度26℃，微风。
+   ```
 
-# 启动交互式对话
-./ai-ops chat
-```
+3. **退出对话**
 
-## 📖 使用示例
+   输入 `exit` 或 `quit` 即可安全退出。
 
-启动交互式对话后，您可以直接与 AI 对话，或者让它调用工具。
+---
 
-```
-> ./ai-ops chat
-AI-Ops 框架初始化完成
-配置文件加载成功
-默认AI模型: gpt-4-turbo (openai)
-日志级别: info
+## 📚 文档与扩展
 
-正在启动交互式对话模式...
-使用默认模型: openai
-你好！有什么可以帮助你的吗？
-> 今天北京天气怎么样？
+- **详细安装、配置与插件开发说明请参见 [docs/](docs/)**
+- 你可以在 `docs/` 目录下找到：
+  - 安装与环境配置指南
+  - 配置文件说明
+  - 插件开发教程与示例
+  - 常见问题解答
 
-AI 正在思考...
-AI 正在调用工具: weather({"location":"北京"})
-AI 正在处理工具返回结果...
+---
 
-根据最新的天气数据，北京市当前天气为晴，气温25℃，体感温度26℃，微风。
-```
-
-## 🔧 如何开发
-
-### 添加新工具
-
-1.  在 `internal/tools/plugins/` 目录下创建一个新的 Go 文件，例如 `my_tool.go`。
-2.  实现 `tools.Tool` 接口（`Name`, `Description`, `Parameters`, `Execute`）。
-3.  在 `internal/tools/plugins/init.go` 文件中的 `init()` 函数里注册你的新工具。
-
-可以参考 `internal/tools/plugins/weather_tool.go` 作为实现示例。
-
-### 项目结构
+## 🗂️ 项目结构概览
 
 ```
 .
-├── cmd/                # Cobra 命令定义
-├── internal/           # 内部业务逻辑
-│   ├── ai/             # AI 客户端（OpenAI, Gemini）
-│   ├── chat/           # 交互式对话逻辑
-│   ├── config/         # 配置加载
-│   ├── tools/          # 工具管理和插件系统
-│   └── util/           # 通用工具函数
-├── main.go             # 程序入口
-└── config.toml         # 配置文件
+├── cmd/         # 命令行入口
+├── internal/    # 核心逻辑与插件
+├── main.go      # 程序主入口
+└── config.toml  # 主配置文件
 ```
+
+---
 
 ## 📄 开源许可
 

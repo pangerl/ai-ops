@@ -40,20 +40,22 @@ func RunSimpleLoop(client ai.AIClient, toolManager tools.ToolManager) {
 
 	for {
 		userInput, err := rl.Readline()
-		if err != nil { // io.EOF, readline.ErrInterrupt
+		if err != nil {
 			if err == io.EOF || err == readline.ErrInterrupt {
+				fmt.Println("\n再见!")
 				break
 			}
 			errorColor.Printf("读取输入失败: %v\n", err)
 			continue
 		}
 
-		if userInput == "exit" || userInput == "quit" {
-			break
-		}
-
-		if strings.TrimSpace(userInput) == "" {
+		userInput = strings.TrimSpace(userInput)
+		if userInput == "" {
 			continue
+		}
+		if userInput == "exit" || userInput == "quit" {
+			fmt.Println("再见!")
+			break
 		}
 
 		s := spinner.New(spinner.CharSets[14], 100*time.Millisecond)
@@ -61,9 +63,8 @@ func RunSimpleLoop(client ai.AIClient, toolManager tools.ToolManager) {
 		s.Start()
 
 		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
-		defer cancel()
-
 		finalResponse, err := session.ProcessMessage(ctx, userInput)
+		cancel()
 		s.Stop()
 
 		if err != nil {
@@ -75,6 +76,4 @@ func RunSimpleLoop(client ai.AIClient, toolManager tools.ToolManager) {
 		fmt.Println(aiResponseColor.Sprint(finalResponse))
 		fmt.Println("---------------------------------------------------")
 	}
-
-	fmt.Println("再见!")
 }
