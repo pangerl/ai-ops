@@ -51,6 +51,7 @@ type WeatherConfig struct {
 
 // RAG配置
 type RAGConfig struct {
+	Enable     bool   `toml:"enable"`
 	ApiHost    string `toml:"api_host"`
 	RetrievalK int    `toml:"retrieval_k"`
 	TopK       int    `toml:"top_k"`

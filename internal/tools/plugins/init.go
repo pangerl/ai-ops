@@ -13,6 +13,7 @@
 package plugins
 
 import (
+	"ai-ops/internal/config"
 	"ai-ops/internal/tools"
 	"ai-ops/internal/util"
 )
@@ -21,6 +22,10 @@ func init() {
 	util.Debug("正在注册插件...")
 	tools.RegisterPluginFactory("echo", NewEchoTool)
 	tools.RegisterPluginFactory("weather", NewWeatherTool)
-	tools.RegisterPluginFactory("rag_retrieval", NewRAGTool)
+	tools.RegisterPluginFactory("sysinfo", NewSysInfoTool)
+	// 仅在 rag.enable=true 时注册 RAG 工具
+	if config.Config != nil && config.Config.RAG.Enable {
+		tools.RegisterPluginFactory("rag", NewRAGTool)
+	}
 	util.Debug("插件注册完成")
 }
