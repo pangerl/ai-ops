@@ -32,6 +32,8 @@ func NewSession(client ai.AIClient, toolManager tools.ToolManager) *Session {
 
 // ProcessMessage 处理用户输入并返回最终的 AI 响应
 func (s *Session) ProcessMessage(ctx context.Context, userInput string) (string, error) {
+	// 标记本轮对话的起始位置
+	roundStartIndex := len(s.messages)
 	// 将用户输入添加到消息历史
 	s.messages = append(s.messages, ai.Message{Role: "user", Content: userInput})
 
@@ -72,7 +74,8 @@ func (s *Session) ProcessMessage(ctx context.Context, userInput string) (string,
 		// 如果没有工具调用，则根据 finish_reason 决定下一步操作
 		switch resp.FinishReason {
 		case "stop":
-			// 对话完成，返回最终内容
+			// 对话完成，整合历史记录并返回最终内容
+			s.consolidateHistory(roundStartIndex)
 			return resp.Content, nil
 		case "tool_calls":
 			// 这种情况不应该发生，因为我们已经处理了工具调用
@@ -81,6 +84,7 @@ func (s *Session) ProcessMessage(ctx context.Context, userInput string) (string,
 		default:
 			// 对于 Gemini，"STOP" 是一个有效的完成原因，即使没有工具调用
 			if s.client.GetModelInfo().Type == "gemini" && resp.FinishReason == "STOP" {
+				s.consolidateHistory(roundStartIndex)
 				return resp.Content, nil
 			}
 			// 其他未知的 finish_reason
@@ -102,6 +106,35 @@ func (s *Session) trimHistory() {
 	s.messages = make([]ai.Message, 0, s.maxHistory)
 	s.messages = append(s.messages, firstMessage)
 	s.messages = append(s.messages, recentMessages...)
+}
+
+// consolidateHistory 整合一轮对话的历史记录。
+// 当一轮涉及工具调用的对话结束时，将中间步骤（工具调用、工具结果）替换为最终的用户问题和AI回答。
+func (s *Session) consolidateHistory(roundStartIndex int) {
+	// 如果本轮对话没有复杂的中间步骤（例如，只是 用户 -> AI），则无需整合
+	// 一个需要整合的典型场景是：用户 -> AI(工具调用) -> 工具结果 -> AI(最终回答)
+	// 所以消息数至少是4条，而本轮消息数是 len(s.messages) - roundStartIndex
+	if len(s.messages)-roundStartIndex < 3 {
+		return
+	}
+
+	// 获取本轮对话之前的历史记录
+	previousHistory := s.messages[:roundStartIndex]
+	// 获取本轮对话的初始用户消息
+	userMessage := s.messages[roundStartIndex]
+	// 获取本轮对话的最终AI回答
+	finalAssistantMessage := s.messages[len(s.messages)-1]
+	// 确保最终回答中不包含工具调用信息，因为它已经是最终文本
+	finalAssistantMessage.ToolCalls = nil
+
+	// 构建新的、整合后的历史记录
+	newMessages := make([]ai.Message, 0, len(previousHistory)+2)
+	newMessages = append(newMessages, previousHistory...)
+	newMessages = append(newMessages, userMessage)
+	newMessages = append(newMessages, finalAssistantMessage)
+
+	s.messages = newMessages
+	util.Infow("历史记录已整合", map[string]any{"history_size": len(s.messages)})
 }
 
 // executeTools 执行工具调用并返回结果消息

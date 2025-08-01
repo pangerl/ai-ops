@@ -11,6 +11,7 @@ const (
 	ErrCodeModelNotFound        = "MODEL_NOT_FOUND"       // 模型未找到
 	ErrCodeAPIKeyMissing        = "API_KEY_MISSING"       // API密钥缺失
 	ErrCodeNetworkFailed        = "NETWORK_FAILED"        // 网络请求失败
+	ErrCodeAPIRequestFailed     = "API_REQUEST_FAILED"    // API请求失败
 	ErrCodeToolNotFound         = "TOOL_NOT_FOUND"        // 工具未找到
 	ErrCodeToolExecutionFailed  = "TOOL_EXECUTION_FAILED" // 工具执行失败
 	ErrCodeInvalidParam         = "INVALID_PARAM"         // 无效参数

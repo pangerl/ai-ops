@@ -17,6 +17,7 @@ type AppConfig struct {
 	AI      AIConfig      `toml:"ai"`
 	Logging LoggingConfig `toml:"logging"`
 	Weather WeatherConfig `toml:"weather"`
+	RAG     RAGConfig     `toml:"rag"`
 }
 
 // AI配置
@@ -46,6 +47,13 @@ type LoggingConfig struct {
 type WeatherConfig struct {
 	ApiHost string `toml:"api_host"`
 	ApiKey  string `toml:"api_key"`
+}
+
+// RAG配置
+type RAGConfig struct {
+	ApiHost    string `toml:"api_host"`
+	RetrievalK int    `toml:"retrieval_k"`
+	TopK       int    `toml:"top_k"`
 }
 
 // 加载配置文件
@@ -135,6 +143,11 @@ file = ""
 [weather]
 api_host = "https://devapi.qweather.com"
 api_key = "${QWEATHER_API_KEY}"
+
+[rag]
+api_host = "http://localhost:8000"
+retrieval_k = 15
+top_k = 5
 `
 
 	return os.WriteFile(configPath, []byte(defaultConfig), 0644)

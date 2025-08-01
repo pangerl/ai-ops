@@ -32,3 +32,4 @@ go.work.sum
 .vscode/
 local-config.toml
 ai-ops
+.DS_Store
