@@ -1,10 +1,9 @@
 package chat
 
 import (
-	"bufio"
 	"context"
 	"fmt"
-	"os"
+	"io"
 	"strings"
 	"time"
 
@@ -12,12 +11,12 @@ import (
 	"ai-ops/internal/tools"
 
 	"github.com/briandowns/spinner"
+	"github.com/chzyer/readline"
 	"github.com/fatih/color"
 )
 
 // RunSimpleLoop 启动一个简单的交互式对话循环
 func RunSimpleLoop(client ai.AIClient, toolManager tools.ToolManager) {
-	scanner := bufio.NewScanner(os.Stdin)
 	userColor := color.New(color.FgGreen).Add(color.Bold)
 	aiColor := color.New(color.FgCyan)
 	aiResponseColor := color.New(color.FgHiWhite)
@@ -28,18 +27,28 @@ func RunSimpleLoop(client ai.AIClient, toolManager tools.ToolManager) {
 
 	session := NewSession(client, toolManager)
 
+	rl, err := readline.NewEx(&readline.Config{
+		Prompt:          userColor.Sprint("You: "),
+		HistoryFile:     "/tmp/ai-ops-readline.tmp",
+		InterruptPrompt: "^C",
+		EOFPrompt:       "exit",
+	})
+	if err != nil {
+		panic(err)
+	}
+	defer rl.Close()
+
 	for {
-		userColor.Print("You: ")
-		if !scanner.Scan() {
-			if err := scanner.Err(); err != nil {
-				errorColor.Printf("读取输入失败: %v\n", err)
+		userInput, err := rl.Readline()
+		if err != nil { // io.EOF, readline.ErrInterrupt
+			if err == io.EOF || err == readline.ErrInterrupt {
+				break
 			}
-			break
+			errorColor.Printf("读取输入失败: %v\n", err)
+			continue
 		}
-		userInput := scanner.Text()
 
 		if userInput == "exit" || userInput == "quit" {
-			fmt.Println("再见!")
 			break
 		}
 
@@ -66,4 +75,6 @@ func RunSimpleLoop(client ai.AIClient, toolManager tools.ToolManager) {
 		fmt.Println(aiResponseColor.Sprint(finalResponse))
 		fmt.Println("---------------------------------------------------")
 	}
+
+	fmt.Println("再见!")
 }
