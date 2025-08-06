@@ -1,12 +1,15 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"ai-ops/internal/ai"
 	"ai-ops/internal/chat"
+	"ai-ops/internal/mcp"
 	"ai-ops/internal/tools"
 	_ "ai-ops/internal/tools/plugins" // 匿名导入以触发插件注册
 	"ai-ops/internal/util"
@@ -53,6 +56,32 @@ var chatCmd = &cobra.Command{
 				util.Warnw("注册工具失败，已跳过", map[string]any{
 					"tool_name": tool.Name(),
 					"error":     err.Error(),
+				})
+			}
+		}
+
+		// 初始化MCP服务
+		mcpService := mcp.NewMCPService(toolManager, "mcp_settings.json", 30*time.Second)
+		ctx := context.Background()
+
+		if err := mcpService.Initialize(ctx); err != nil {
+			util.Warnw("MCP服务初始化失败，将继续使用其他工具", map[string]any{
+				"error": err.Error(),
+			})
+		} else {
+			// 确保在程序退出时清理MCP资源
+			defer func() {
+				if err := mcpService.Shutdown(); err != nil {
+					util.Warnw("MCP服务关闭失败", map[string]any{
+						"error": err.Error(),
+					})
+				}
+			}()
+
+			connectedServers := mcpService.GetConnectedServers()
+			if len(connectedServers) > 0 {
+				util.Infow("MCP服务初始化成功", map[string]any{
+					"connected_servers": connectedServers,
 				})
 			}
 		}

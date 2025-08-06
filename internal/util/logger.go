@@ -310,3 +310,9 @@ func InitLogger(level, format, output, file string) error {
 	DefaultLogger = NewLogger(logLevel, format, writer, enableColor)
 	return nil
 }
+
+// FileExists 检查文件是否存在
+func FileExists(filename string) bool {
+	_, err := os.Stat(filename)
+	return !os.IsNotExist(err)
+}

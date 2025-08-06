@@ -8,6 +8,8 @@ import (
 const (
 	ErrCodeConfigNotFound       = "CONFIG_NOT_FOUND"      // 配置文件未找到
 	ErrCodeConfigInvalid        = "CONFIG_INVALID"        // 配置文件无效
+	ErrCodeConfigLoadFailed     = "CONFIG_LOAD_FAILED"    // 配置加载失败
+	ErrCodeConfigParseFailed    = "CONFIG_PARSE_FAILED"   // 配置解析失败
 	ErrCodeModelNotFound        = "MODEL_NOT_FOUND"       // 模型未找到
 	ErrCodeAPIKeyMissing        = "API_KEY_MISSING"       // API密钥缺失
 	ErrCodeNetworkFailed        = "NETWORK_FAILED"        // 网络请求失败
@@ -19,6 +21,13 @@ const (
 	ErrCodeAIResponseInvalid    = "AI_RESPONSE_INVALID"   // AI响应无效
 	ErrCodeNotFound             = "NOT_FOUND"             // 资源未找到
 	ErrCodeInitializationFailed = "INITIALIZATION_FAILED" // 初始化失败
+
+	// MCP相关错误代码
+	ErrCodeMCPNotConfigured    = "MCP_NOT_CONFIGURED"    // MCP未配置
+	ErrCodeMCPConnectionFailed = "MCP_CONNECTION_FAILED" // MCP连接失败
+	ErrCodeMCPNotConnected     = "MCP_NOT_CONNECTED"     // MCP未连接
+	ErrCodeMCPToolListFailed   = "MCP_TOOL_LIST_FAILED"  // MCP工具列表获取失败
+	ErrCodeMCPToolCallFailed   = "MCP_TOOL_CALL_FAILED"  // MCP工具调用失败
 )
 
 // 应用错误结构
@@ -108,6 +117,14 @@ func GetUserFriendlyMessage(err error) string {
 			return "请求的工具不存在，请检查工具名称"
 		case ErrCodeInvalidParam:
 			return "参数无效，请检查输入参数"
+		case ErrCodeMCPNotConfigured:
+			return "MCP未配置，请检查mcp_settings.json文件"
+		case ErrCodeMCPConnectionFailed:
+			return "MCP服务器连接失败，请检查服务器配置和状态"
+		case ErrCodeMCPNotConnected:
+			return "MCP服务器未连接，请检查连接状态"
+		case ErrCodeMCPToolCallFailed:
+			return "MCP工具调用失败，请检查工具参数和服务器状态"
 		default:
 			return appErr.Message
 		}
@@ -131,6 +148,14 @@ func GetRecoverySuggestion(err error) string {
 			return "在配置文件的[ai.models]部分添加模型配置"
 		case ErrCodeToolNotFound:
 			return "检查工具名称拼写，或查看可用工具列表"
+		case ErrCodeMCPNotConfigured:
+			return "创建mcp_settings.json配置文件，配置MCP服务器信息"
+		case ErrCodeMCPConnectionFailed:
+			return "检查MCP服务器命令和参数，确保服务器程序可执行"
+		case ErrCodeMCPNotConnected:
+			return "重新连接MCP服务器，或检查服务器进程状态"
+		case ErrCodeMCPToolCallFailed:
+			return "检查工具参数格式，或查看MCP服务器日志"
 		default:
 			return "查看详细错误信息或联系技术支持"
 		}
