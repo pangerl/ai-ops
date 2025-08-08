@@ -2,13 +2,11 @@ package ai
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
 	"ai-ops/internal/tools"
-	"ai-ops/internal/util"
 )
 
 // GeminiClient Gemini AI 客户端实现
@@ -65,20 +63,11 @@ func NewGeminiClient(config ModelConfig) (*GeminiClient, error) {
 func (c *GeminiClient) SendMessage(ctx context.Context, messages []Message, toolDefs []tools.ToolDefinition) (*Response, error) {
 	request := c.buildRequest(messages, toolDefs)
 
-	requestBody, err := json.Marshal(request)
-	if err != nil {
-		util.LogErrorWithFields(err, "序列化 Gemini 请求失败", nil)
-	} else {
-		util.Infow("发送 Gemini 请求", map[string]any{
-			"request_body": string(requestBody),
-		})
-	}
-
 	// Gemini API 端点格式为 models/MODEL_NAME:generateContent
 	endpoint := fmt.Sprintf("models/%s:generateContent", c.modelInfo.Name)
 
 	var response GeminiResponse
-	err = c.httpClient.PostJSONWithRetry(ctx, endpoint, request, &response)
+	err := c.httpClient.PostJSONWithRetry(ctx, endpoint, request, &response)
 	if err != nil {
 		return nil, err
 	}

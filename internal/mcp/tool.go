@@ -46,7 +46,48 @@ func (t *MCPTool) Parameters() map[string]any {
 	if err == nil {
 		_ = json.Unmarshal(data, &schema)
 	}
+
+	// 递归修复schema
+	if schema != nil {
+		fixSchema(schema)
+	}
+
 	return schema
+}
+
+// fixSchema 递归修复JSON schema，以兼容Gemini API
+func fixSchema(node map[string]any) {
+	// 将 exclusiveMaximum/exclusiveMinimum 替换为 maximum/minimum
+	if val, ok := node["exclusiveMaximum"]; ok {
+		node["maximum"] = val
+		delete(node, "exclusiveMaximum")
+	}
+	if val, ok := node["exclusiveMinimum"]; ok {
+		node["minimum"] = val
+		delete(node, "exclusiveMinimum")
+	}
+
+	// Gemini只支持string类型的 "enum" 和 "date-time" format
+	if typeVal, ok := node["type"]; ok && typeVal == "string" {
+		if formatVal, ok := node["format"]; ok {
+			if s, ok := formatVal.(string); ok && s != "enum" && s != "date-time" {
+				delete(node, "format")
+			}
+		}
+	}
+
+	// 递归处理子节点
+	for _, value := range node {
+		if subNode, ok := value.(map[string]any); ok {
+			fixSchema(subNode)
+		} else if subArray, ok := value.([]any); ok {
+			for _, item := range subArray {
+				if subNode, ok := item.(map[string]any); ok {
+					fixSchema(subNode)
+				}
+			}
+		}
+	}
 }
 
 // Execute 执行工具
