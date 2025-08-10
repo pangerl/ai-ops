@@ -7,24 +7,41 @@ import (
 	"time"
 
 	"ai-ops/internal/tools"
+	"ai-ops/internal/util"
 )
 
-// OpenAIClient OpenAI AI 客户端实现
+// OpenAIClient OpenAI AI 客户端实现，实现 ModelAdapter 接口
 type OpenAIClient struct {
-	httpClient *RetryableHTTPClient
-	config     ModelConfig
-	modelInfo  ModelInfo
+	*BaseAdapter // 嵌入基础适配器
+	httpClient   *RetryableHTTPClient
+	config       ModelConfig
+	modelInfo    ModelInfo
 }
 
-// NewOpenAIClient 创建新的 OpenAI 客户端
+// NewOpenAIClient 创建新的 OpenAI 客户端（保持向后兼容）
 func NewOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
+	return createOpenAIClient(config)
+}
+
+// NewOpenAIAdapter 创建新的 OpenAI 适配器（工厂函数）
+func NewOpenAIAdapter(config interface{}) (ModelAdapter, error) {
+	modelConfig, ok := config.(ModelConfig)
+	if !ok {
+		return nil, NewAIError(ErrCodeInvalidConfig, "invalid config type for OpenAI adapter", nil)
+	}
+	return createOpenAIClient(modelConfig)
+}
+
+// createOpenAIClient 内部函数，创建 OpenAI 客户端实例
+func createOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 	if config.APIKey == "" {
 		return nil, NewAIError(ErrCodeAPIKeyMissing, "OpenAI API key is required", nil)
 	}
 
 	baseURL := config.BaseURL
 	if baseURL == "" {
-		baseURL = "https://api.openai.com"
+		// 与配置文件约定保持一致：默认使用完整 Chat Completions 端点
+		baseURL = "https://api.openai.com/v1/chat/completions"
 	}
 
 	timeout := time.Duration(config.Timeout) * time.Second
@@ -34,7 +51,6 @@ func NewOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 
 	httpClient := NewRetryableHTTPClient(baseURL, timeout, 3, time.Second)
 	httpClient.SetHeader("Authorization", "Bearer "+config.APIKey)
-	// httpClient.SetHeader("OpenAI-Beta", "assistants=v2")
 
 	modelName := config.Model
 	if modelName == "" {
@@ -59,20 +75,82 @@ func NewOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 		}
 	}
 
-	return &OpenAIClient{
-		httpClient: httpClient,
-		config:     config,
+	// 定义 OpenAI 适配器信息
+	adapterInfo := AdapterInfo{
+		Name:         "OpenAI",
+		Type:         "openai",
+		Version:      "1.0.0",
+		Description:  "OpenAI GPT 模型适配器",
+		Provider:     "OpenAI",
+		DefaultModel: "gpt-4o-mini",
+		SupportedModels: []string{
+			"gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4",
+			"gpt-3.5-turbo", "gpt-3.5-turbo-16k",
+		},
+		ConfigSchema: map[string]interface{}{
+			"api_key": map[string]interface{}{
+				"type":        "string",
+				"required":    true,
+				"description": "OpenAI API 密钥",
+			},
+			"base_url": map[string]interface{}{
+				"type":        "string",
+				"required":    false,
+				"default":     "https://api.openai.com",
+				"description": "API 基础 URL",
+			},
+			"model": map[string]interface{}{
+				"type":        "string",
+				"required":    false,
+				"default":     "gpt-4o-mini",
+				"description": "模型名称",
+			},
+		},
+	}
+
+	// 设置支持的能力到适配器信息中
+	adapterInfo.Capabilities = []AdapterCapability{
+		CapabilityChat,
+		CapabilityToolCalling,
+		CapabilityTextGeneration,
+	}
+	adapterInfo.MaxTokens = maxTokens
+
+	// 创建基础适配器
+	baseAdapter := NewBaseAdapter(adapterInfo)
+
+	client := &OpenAIClient{
+		BaseAdapter: baseAdapter,
+		httpClient:  httpClient,
+		config:      config,
 		modelInfo: ModelInfo{
 			Name:         modelName,
 			Type:         "openai",
 			MaxTokens:    maxTokens,
 			SupportTools: true,
 		},
-	}, nil
+	}
+
+	// 初始化适配器
+	if err := client.Initialize(context.Background(), config); err != nil {
+		return nil, NewAIError(ErrCodeClientCreationFailed, "failed to initialize OpenAI adapter", err)
+	}
+	// 默认启用提供商特定错误映射，便于统一错误语义
+	client.SetErrorMapper(CreateErrorMapperForProvider("openai"))
+
+	util.Debugw("OpenAI 适配器创建成功", map[string]interface{}{
+		"model":      modelName,
+		"max_tokens": maxTokens,
+		"base_url":   baseURL,
+	})
+
+	return client, nil
 }
 
 // SendMessage 发送消息并获取响应
 func (c *OpenAIClient) SendMessage(ctx context.Context, messages []Message, toolDefs []tools.ToolDefinition) (*Response, error) {
+	startTime := time.Now()
+
 	request := c.buildRequest(messages, toolDefs)
 
 	// base_url 已经包含完整的 api 请求地址，不需要传递endpoint，保持为空
@@ -80,8 +158,18 @@ func (c *OpenAIClient) SendMessage(ctx context.Context, messages []Message, tool
 
 	var response OpenAIResponse
 	err := c.httpClient.PostJSONWithRetry(ctx, endpoint, request, &response)
+
+	// 计算响应时间并更新指标
+	responseTime := time.Since(startTime).Milliseconds()
+	var tokensUsed int64
+	if err == nil && len(response.Choices) > 0 {
+		tokensUsed = int64(response.Usage.TotalTokens)
+	}
+	c.UpdateMetrics(responseTime, err == nil, tokensUsed)
+
 	if err != nil {
-		return nil, err
+		c.RecordError(err)
+		return nil, c.MapError(err)
 	}
 
 	return c.parseResponse(&response)
@@ -90,6 +178,70 @@ func (c *OpenAIClient) SendMessage(ctx context.Context, messages []Message, tool
 // GetModelInfo 获取模型信息
 func (c *OpenAIClient) GetModelInfo() ModelInfo {
 	return c.modelInfo
+}
+
+// ValidateConfig 验证 OpenAI 配置
+func (c *OpenAIClient) ValidateConfig(config interface{}) error {
+	modelConfig, ok := config.(ModelConfig)
+	if !ok {
+		return NewAIError(ErrCodeInvalidConfig, "config must be of type ModelConfig", nil)
+	}
+
+	if modelConfig.APIKey == "" {
+		return NewAIError(ErrCodeAPIKeyMissing, "API key is required", nil)
+	}
+
+	if modelConfig.Model != "" {
+		// 验证模型是否在支持列表中
+		supportedModels := []string{
+			"gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4",
+			"gpt-3.5-turbo", "gpt-3.5-turbo-16k",
+		}
+
+		modelSupported := false
+		for _, supported := range supportedModels {
+			if strings.Contains(modelConfig.Model, supported) {
+				modelSupported = true
+				break
+			}
+		}
+
+		if !modelSupported {
+			util.Debugw("使用非标准 OpenAI 模型", map[string]interface{}{
+				"model": modelConfig.Model,
+			})
+		}
+	}
+
+	if modelConfig.Timeout < 0 {
+		return NewAIError(ErrCodeInvalidConfig, "timeout cannot be negative", nil)
+	}
+
+	return nil
+}
+
+// HealthCheck 健康检查
+func (c *OpenAIClient) HealthCheck(ctx context.Context) error {
+	// 首先调用基础适配器的健康检查
+	if err := c.BaseAdapter.HealthCheck(ctx); err != nil {
+		return err
+	}
+
+	// OpenAI 特定的健康检查：发送一个简单的测试请求
+	testMessages := []Message{
+		{Role: "user", Content: "ping"},
+	}
+
+	// 创建一个较短超时的上下文用于健康检查
+	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	_, err := c.SendMessage(healthCtx, testMessages, nil)
+	if err != nil {
+		return NewAIError(ErrCodeServiceUnavailable, "OpenAI service health check failed", err)
+	}
+
+	return nil
 }
 
 // buildRequest 构建 OpenAI API 请求
@@ -267,4 +419,93 @@ type OpenAIUsage struct {
 	PromptTokens     int `json:"prompt_tokens"`
 	CompletionTokens int `json:"completion_tokens"`
 	TotalTokens      int `json:"total_tokens"`
+}
+
+// validateOpenAIConfig OpenAI 配置验证器
+func validateOpenAIConfig(config interface{}) error {
+	modelConfig, ok := config.(ModelConfig)
+	if !ok {
+		return NewAIError(ErrCodeInvalidConfig, "config must be of type ModelConfig", nil)
+	}
+
+	if modelConfig.APIKey == "" {
+		return NewAIError(ErrCodeAPIKeyMissing, "API key is required for OpenAI", nil)
+	}
+
+	return nil
+}
+
+// init 函数，在包加载时注册 OpenAI 适配器
+func init() {
+	// 定义适配器信息
+	adapterInfo := AdapterInfo{
+		Name:         "OpenAI",
+		Type:         "openai",
+		Version:      "1.0.0",
+		Description:  "OpenAI GPT 模型适配器，支持 GPT-4 和 GPT-3.5 系列模型",
+		Provider:     "OpenAI",
+		DefaultModel: "gpt-4o-mini",
+		SupportedModels: []string{
+			"gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4",
+			"gpt-3.5-turbo", "gpt-3.5-turbo-16k",
+		},
+		Capabilities: []AdapterCapability{
+			CapabilityChat,
+			CapabilityToolCalling,
+			CapabilityTextGeneration,
+		},
+		MaxTokens: 128000, // GPT-4 Turbo 的最大值
+		ConfigSchema: map[string]interface{}{
+			"type": map[string]interface{}{
+				"type":        "string",
+				"required":    true,
+				"enum":        []string{"openai"},
+				"description": "适配器类型",
+			},
+			"api_key": map[string]interface{}{
+				"type":        "string",
+				"required":    true,
+				"description": "OpenAI API 密钥",
+			},
+			"base_url": map[string]interface{}{
+				"type":        "string",
+				"required":    false,
+				"default":     "https://api.openai.com",
+				"description": "API 基础 URL，可用于代理服务器",
+			},
+			"model": map[string]interface{}{
+				"type":        "string",
+				"required":    false,
+				"default":     "gpt-4o-mini",
+				"description": "要使用的模型名称",
+			},
+			"timeout": map[string]interface{}{
+				"type":        "integer",
+				"required":    false,
+				"default":     30,
+				"minimum":     1,
+				"description": "请求超时时间（秒）",
+			},
+		},
+	}
+
+	// 注册适配器工厂函数
+	if err := RegisterAdapterFactory("openai", NewOpenAIAdapter, adapterInfo); err != nil {
+		util.Errorw("注册 OpenAI 适配器失败", map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
+
+	// 注册配置验证器
+	if err := RegisterConfigValidator("openai", validateOpenAIConfig); err != nil {
+		util.Errorw("注册 OpenAI 配置验证器失败", map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
+
+	util.Debugw("OpenAI 适配器注册成功", map[string]interface{}{
+		"type":             "openai",
+		"supported_models": adapterInfo.SupportedModels,
+		"capabilities":     len(adapterInfo.Capabilities),
+	})
 }

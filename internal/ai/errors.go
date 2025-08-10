@@ -71,4 +71,5 @@ const (
 	ErrCodeModelNotSupported    = "MODEL_NOT_SUPPORTED"
 	ErrCodeInvalidParameters    = "INVALID_PARAMETERS"
 	ErrCodeClientCreationFailed = "CLIENT_CREATION_FAILED"
+	ErrCodeServiceUnavailable   = "SERVICE_UNAVAILABLE"
 )

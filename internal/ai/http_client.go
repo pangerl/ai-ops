@@ -110,7 +110,10 @@ func (c *AIHTTPClient) Post(ctx context.Context, endpoint string, payload interf
 
 // Get 发送 GET 请求
 func (c *AIHTTPClient) Get(ctx context.Context, endpoint string) (*http.Response, error) {
-	url := c.baseURL + endpoint
+	url := c.baseURL
+	if endpoint != "" {
+		url = strings.TrimRight(c.baseURL, "/") + "/" + strings.TrimLeft(endpoint, "/")
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {

@@ -70,6 +70,7 @@ type ClientManager struct {
 	defaultClient string
 	configs       map[string]ModelConfig
 	retryConfig   RetryConfig
+	registry      *AdapterRegistry // 适配器注册表
 }
 
 // RetryConfig 重试配置
@@ -89,6 +90,7 @@ func NewClientManager() *ClientManager {
 			RetryDelay: time.Second,
 			Enabled:    true,
 		},
+		registry: GetDefaultRegistry(), // 使用全局适配器注册表
 	}
 }
 
@@ -156,6 +158,19 @@ func (cm *ClientManager) GetRetryConfig() RetryConfig {
 
 // CreateClientFromConfig 根据配置创建客户端
 func (cm *ClientManager) CreateClientFromConfig(name string, config ModelConfig) error {
+	// 优先使用适配器注册表创建客户端
+	if cm.registry != nil && cm.registry.HasAdapterType(config.Type) {
+		adapter, err := cm.registry.CreateAdapter(name, config.Type, config)
+		if err != nil {
+			return NewAIError(ErrCodeClientCreationFailed, fmt.Sprintf("failed to create adapter for '%s'", name), err)
+		}
+
+		// 将适配器作为 AIClient 注册
+		cm.RegisterClient(name, adapter, config)
+		return nil
+	}
+
+	// 回退到传统方式（保持向后兼容性）
 	var client AIClient
 	var err error
 
@@ -329,6 +344,134 @@ type ClientStatus struct {
 	Healthy   bool   `json:"healthy"`
 	LastError string `json:"last_error,omitempty"`
 	IsDefault bool   `json:"is_default"`
+}
+
+// GetAdapterRegistry 获取适配器注册表
+func (cm *ClientManager) GetAdapterRegistry() *AdapterRegistry {
+	return cm.registry
+}
+
+// SetAdapterRegistry 设置适配器注册表
+func (cm *ClientManager) SetAdapterRegistry(registry *AdapterRegistry) {
+	cm.registry = registry
+}
+
+// ListSupportedAdapterTypes 列出所有支持的适配器类型
+func (cm *ClientManager) ListSupportedAdapterTypes() []string {
+	if cm.registry == nil {
+		return []string{}
+	}
+	return cm.registry.ListSupportedTypes()
+}
+
+// GetAdapterInfo 获取指定类型的适配器信息
+func (cm *ClientManager) GetAdapterInfo(adapterType string) (AdapterInfo, bool) {
+	if cm.registry == nil {
+		return AdapterInfo{}, false
+	}
+	return cm.registry.GetAdapterInfo(adapterType)
+}
+
+// GetAllAdapterInfos 获取所有适配器类型信息
+func (cm *ClientManager) GetAllAdapterInfos() map[string]AdapterInfo {
+	if cm.registry == nil {
+		return make(map[string]AdapterInfo)
+	}
+	return cm.registry.GetAllAdapterInfos()
+}
+
+// ValidateAdapterConfig 验证指定类型的适配器配置
+func (cm *ClientManager) ValidateAdapterConfig(adapterType string, config interface{}) error {
+	if cm.registry == nil {
+		return NewAIError(ErrCodeInvalidConfig, "adapter registry not available", nil)
+	}
+	return cm.registry.ValidateConfig(adapterType, config)
+}
+
+// GetAdapterStatus 获取适配器状态（统一使用 ModelAdapter 接口）
+func (cm *ClientManager) GetAdapterStatus(name string) (*AdapterStatus, error) {
+	client, exists := cm.GetClient(name)
+	if !exists {
+		return nil, NewAIError(ErrCodeClientNotFound, fmt.Sprintf("client not found: %s", name), nil)
+	}
+
+	config, _ := cm.GetConfig(name)
+	modelInfo := client.GetModelInfo()
+
+	var metrics AdapterMetrics
+	healthy := true
+	lastError := ""
+
+	// 优先走 ModelAdapter 接口，避免具体类型断言
+	if adapter, ok := client.(ModelAdapter); ok {
+		metrics = adapter.GetMetrics()
+		ctx := context.Background()
+		if err := adapter.HealthCheck(ctx); err != nil {
+			healthy = false
+			lastError = err.Error()
+		}
+	} else {
+		// 回退：对非适配器客户端做简单健康检查
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		testMessages := []Message{{Role: "user", Content: "ping"}}
+		if _, err := client.SendMessage(ctx, testMessages, nil); err != nil {
+			healthy = false
+			lastError = err.Error()
+		}
+	}
+
+	return &AdapterStatus{
+		Name:            name,
+		Healthy:         healthy,
+		LastHealthCheck: time.Now().Unix(),
+		Metrics:         metrics,
+		Config: map[string]interface{}{
+			"type":  config.Type,
+			"model": modelInfo.Name,
+		},
+		LastError: lastError,
+	}, nil
+}
+
+// GetAllAdapterStatus 获取所有适配器状态
+func (cm *ClientManager) GetAllAdapterStatus() map[string]*AdapterStatus {
+	statuses := make(map[string]*AdapterStatus)
+
+	for name := range cm.clients {
+		if status, err := cm.GetAdapterStatus(name); err == nil {
+			statuses[name] = status
+		}
+	}
+
+	return statuses
+}
+
+// HealthCheckAll 对所有客户端执行健康检查
+func (cm *ClientManager) HealthCheckAll(ctx context.Context) map[string]error {
+	results := make(map[string]error)
+
+	for name, client := range cm.clients {
+		// 检查是否是 ModelAdapter
+		if adapter, ok := client.(ModelAdapter); ok {
+			results[name] = adapter.HealthCheck(ctx)
+		} else {
+			// 对于非适配器客户端，进行简单的健康检查
+			testMessages := []Message{{Role: "user", Content: "ping"}}
+			_, err := client.SendMessage(ctx, testMessages, nil)
+			results[name] = err
+		}
+	}
+
+	return results
+}
+
+// GetRegistryStats 获取注册表统计信息
+func (cm *ClientManager) GetRegistryStats() RegistryStats {
+	if cm.registry == nil {
+		return RegistryStats{}
+	}
+	return cm.registry.GetStats()
 }
 
 // 删除了ModelSwitcher相关代码，简化客户端管理

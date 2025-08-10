@@ -7,17 +7,33 @@ import (
 	"time"
 
 	"ai-ops/internal/tools"
+	"ai-ops/internal/util"
 )
 
-// GeminiClient Gemini AI 客户端实现
+// GeminiClient Gemini AI 客户端实现，实现 ModelAdapter 接口
 type GeminiClient struct {
-	httpClient *RetryableHTTPClient
-	config     ModelConfig
-	modelInfo  ModelInfo
+	*BaseAdapter // 嵌入基础适配器
+	httpClient   *RetryableHTTPClient
+	config       ModelConfig
+	modelInfo    ModelInfo
 }
 
-// NewGeminiClient 创建新的 Gemini 客户端
+// NewGeminiClient 创建新的 Gemini 客户端（保持向后兼容）
 func NewGeminiClient(config ModelConfig) (*GeminiClient, error) {
+	return createGeminiClient(config)
+}
+
+// NewGeminiAdapter 创建新的 Gemini 适配器（工厂函数）
+func NewGeminiAdapter(config interface{}) (ModelAdapter, error) {
+	modelConfig, ok := config.(ModelConfig)
+	if !ok {
+		return nil, NewAIError(ErrCodeInvalidConfig, "invalid config type for Gemini adapter", nil)
+	}
+	return createGeminiClient(modelConfig)
+}
+
+// createGeminiClient 内部函数，创建 Gemini 客户端实例
+func createGeminiClient(config ModelConfig) (*GeminiClient, error) {
 	if config.APIKey == "" {
 		return nil, NewAIError(ErrCodeAPIKeyMissing, "Gemini API key is required", nil)
 	}
@@ -39,28 +55,93 @@ func NewGeminiClient(config ModelConfig) (*GeminiClient, error) {
 
 	modelName := config.Model
 	if modelName == "" {
-		modelName = "gemini-2.5-flash"
+		modelName = "gemini-2.0-flash-exp"
 	}
 
 	maxTokens := 8192 // gemini-pro 的默认值
 	if strings.Contains(modelName, "1.5") {
 		maxTokens = 1048576
+	} else if strings.Contains(modelName, "2.0") {
+		maxTokens = 1048576
 	}
 
-	return &GeminiClient{
-		httpClient: httpClient,
-		config:     config,
+	// 定义 Gemini 适配器信息
+	adapterInfo := AdapterInfo{
+		Name:         "Gemini",
+		Type:         "gemini",
+		Version:      "1.0.0",
+		Description:  "Google Gemini 模型适配器",
+		Provider:     "Google",
+		DefaultModel: "gemini-2.0-flash-exp",
+		SupportedModels: []string{
+			"gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.5-flash",
+			"gemini-1.0-pro", "gemini-pro",
+		},
+		ConfigSchema: map[string]interface{}{
+			"api_key": map[string]interface{}{
+				"type":        "string",
+				"required":    true,
+				"description": "Google Gemini API 密钥",
+			},
+			"base_url": map[string]interface{}{
+				"type":        "string",
+				"required":    false,
+				"default":     "https://generativelanguage.googleapis.com/v1beta/",
+				"description": "API 基础 URL",
+			},
+			"model": map[string]interface{}{
+				"type":        "string",
+				"required":    false,
+				"default":     "gemini-2.0-flash-exp",
+				"description": "模型名称",
+			},
+		},
+	}
+
+	// 设置支持的能力到适配器信息中
+	adapterInfo.Capabilities = []AdapterCapability{
+		CapabilityChat,
+		CapabilityToolCalling,
+		CapabilityTextGeneration,
+	}
+	adapterInfo.MaxTokens = maxTokens
+
+	// 创建基础适配器
+	baseAdapter := NewBaseAdapter(adapterInfo)
+
+	client := &GeminiClient{
+		BaseAdapter: baseAdapter,
+		httpClient:  httpClient,
+		config:      config,
 		modelInfo: ModelInfo{
 			Name:         modelName,
 			Type:         "gemini",
 			MaxTokens:    maxTokens,
 			SupportTools: true,
 		},
-	}, nil
+	}
+
+	// 初始化适配器
+	if err := client.Initialize(context.Background(), config); err != nil {
+		return nil, NewAIError(ErrCodeClientCreationFailed, "failed to initialize Gemini adapter", err)
+	}
+
+	// 默认启用提供商特定错误映射
+	client.SetErrorMapper(CreateErrorMapperForProvider("gemini"))
+
+	util.Debugw("Gemini 适配器创建成功", map[string]interface{}{
+		"model":      modelName,
+		"max_tokens": maxTokens,
+		"base_url":   baseURL,
+	})
+
+	return client, nil
 }
 
 // SendMessage 发送消息并获取响应
 func (c *GeminiClient) SendMessage(ctx context.Context, messages []Message, toolDefs []tools.ToolDefinition) (*Response, error) {
+	startTime := time.Now()
+
 	request := c.buildRequest(messages, toolDefs)
 
 	// Gemini API 端点格式为 models/MODEL_NAME:generateContent
@@ -68,8 +149,19 @@ func (c *GeminiClient) SendMessage(ctx context.Context, messages []Message, tool
 
 	var response GeminiResponse
 	err := c.httpClient.PostJSONWithRetry(ctx, endpoint, request, &response)
+
+	// 计算响应时间并更新指标
+	responseTime := time.Since(startTime).Milliseconds()
+	var tokensUsed int64
+	if err == nil && len(response.Candidates) > 0 {
+		// Gemini 不直接返回令牌使用情况，使用估算
+		tokensUsed = int64(len(fmt.Sprintf("%+v", messages)) / 4) // 粗略估算
+	}
+	c.UpdateMetrics(responseTime, err == nil, tokensUsed)
+
 	if err != nil {
-		return nil, err
+		c.RecordError(err)
+		return nil, c.MapError(err)
 	}
 
 	return c.parseResponse(&response)
@@ -78,6 +170,70 @@ func (c *GeminiClient) SendMessage(ctx context.Context, messages []Message, tool
 // GetModelInfo 获取模型信息
 func (c *GeminiClient) GetModelInfo() ModelInfo {
 	return c.modelInfo
+}
+
+// ValidateConfig 验证 Gemini 配置
+func (c *GeminiClient) ValidateConfig(config interface{}) error {
+	modelConfig, ok := config.(ModelConfig)
+	if !ok {
+		return NewAIError(ErrCodeInvalidConfig, "config must be of type ModelConfig", nil)
+	}
+
+	if modelConfig.APIKey == "" {
+		return NewAIError(ErrCodeAPIKeyMissing, "API key is required", nil)
+	}
+
+	if modelConfig.Model != "" {
+		// 验证模型是否在支持列表中
+		supportedModels := []string{
+			"gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.5-flash",
+			"gemini-1.0-pro", "gemini-pro", "gemini-2.5-flash",
+		}
+
+		modelSupported := false
+		for _, supported := range supportedModels {
+			if strings.Contains(modelConfig.Model, supported) {
+				modelSupported = true
+				break
+			}
+		}
+
+		if !modelSupported {
+			util.Debugw("使用非标准 Gemini 模型", map[string]interface{}{
+				"model": modelConfig.Model,
+			})
+		}
+	}
+
+	if modelConfig.Timeout < 0 {
+		return NewAIError(ErrCodeInvalidConfig, "timeout cannot be negative", nil)
+	}
+
+	return nil
+}
+
+// HealthCheck 健康检查
+func (c *GeminiClient) HealthCheck(ctx context.Context) error {
+	// 首先调用基础适配器的健康检查
+	if err := c.BaseAdapter.HealthCheck(ctx); err != nil {
+		return err
+	}
+
+	// Gemini 特定的健康检查：发送一个简单的测试请求
+	testMessages := []Message{
+		{Role: "user", Content: "ping"},
+	}
+
+	// 创建一个较短超时的上下文用于健康检查
+	healthCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	_, err := c.SendMessage(healthCtx, testMessages, nil)
+	if err != nil {
+		return NewAIError(ErrCodeServiceUnavailable, "Gemini service health check failed", err)
+	}
+
+	return nil
 }
 
 // buildRequest 构建 Gemini API 请求
@@ -256,4 +412,93 @@ type PromptFeedback struct {
 type SafetyRating struct {
 	Category    string `json:"category"`
 	Probability string `json:"probability"`
+}
+
+// validateGeminiConfig Gemini 配置验证器
+func validateGeminiConfig(config interface{}) error {
+	modelConfig, ok := config.(ModelConfig)
+	if !ok {
+		return NewAIError(ErrCodeInvalidConfig, "config must be of type ModelConfig", nil)
+	}
+
+	if modelConfig.APIKey == "" {
+		return NewAIError(ErrCodeAPIKeyMissing, "API key is required for Gemini", nil)
+	}
+
+	return nil
+}
+
+// init 函数，在包加载时注册 Gemini 适配器
+func init() {
+	// 定义适配器信息
+	adapterInfo := AdapterInfo{
+		Name:         "Gemini",
+		Type:         "gemini",
+		Version:      "1.0.0",
+		Description:  "Google Gemini 模型适配器，支持 Gemini Pro 和 Flash 系列模型",
+		Provider:     "Google",
+		DefaultModel: "gemini-2.0-flash-exp",
+		SupportedModels: []string{
+			"gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.5-flash",
+			"gemini-1.0-pro", "gemini-pro", "gemini-2.5-flash",
+		},
+		Capabilities: []AdapterCapability{
+			CapabilityChat,
+			CapabilityToolCalling,
+			CapabilityTextGeneration,
+		},
+		MaxTokens: 1048576, // Gemini 1.5/2.0 的最大值
+		ConfigSchema: map[string]interface{}{
+			"type": map[string]interface{}{
+				"type":        "string",
+				"required":    true,
+				"enum":        []string{"gemini"},
+				"description": "适配器类型",
+			},
+			"api_key": map[string]interface{}{
+				"type":        "string",
+				"required":    true,
+				"description": "Google Gemini API 密钥",
+			},
+			"base_url": map[string]interface{}{
+				"type":        "string",
+				"required":    false,
+				"default":     "https://generativelanguage.googleapis.com/v1beta/",
+				"description": "API 基础 URL",
+			},
+			"model": map[string]interface{}{
+				"type":        "string",
+				"required":    false,
+				"default":     "gemini-2.0-flash-exp",
+				"description": "要使用的模型名称",
+			},
+			"timeout": map[string]interface{}{
+				"type":        "integer",
+				"required":    false,
+				"default":     60,
+				"minimum":     1,
+				"description": "请求超时时间（秒）",
+			},
+		},
+	}
+
+	// 注册适配器工厂函数
+	if err := RegisterAdapterFactory("gemini", NewGeminiAdapter, adapterInfo); err != nil {
+		util.Errorw("注册 Gemini 适配器失败", map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
+
+	// 注册配置验证器
+	if err := RegisterConfigValidator("gemini", validateGeminiConfig); err != nil {
+		util.Errorw("注册 Gemini 配置验证器失败", map[string]interface{}{
+			"error": err.Error(),
+		})
+	}
+
+	util.Debugw("Gemini 适配器注册成功", map[string]interface{}{
+		"type":             "gemini",
+		"supported_models": adapterInfo.SupportedModels,
+		"capabilities":     len(adapterInfo.Capabilities),
+	})
 }
