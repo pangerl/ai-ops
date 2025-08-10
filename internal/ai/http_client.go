@@ -83,15 +83,44 @@ func (c *AIHTTPClient) Post(ctx context.Context, endpoint string, payload interf
 		req.Header.Set(key, value)
 	}
 
-	// 记录详细的请求信息
+	// 记录详细的请求信息（脱敏与限长）
 	headersMap := make(map[string]string)
 	for name, values := range req.Header {
-		headersMap[name] = strings.Join(values, ", ")
+		joined := strings.Join(values, ", ")
+		switch strings.ToLower(name) {
+		case "authorization":
+			if strings.HasPrefix(joined, "Bearer ") {
+				headersMap[name] = "Bearer ***"
+			} else if joined != "" {
+				headersMap[name] = "[REDACTED]"
+			} else {
+				headersMap[name] = ""
+			}
+		case "cookie", "set-cookie":
+			if joined != "" {
+				headersMap[name] = "[REDACTED]"
+			} else {
+				headersMap[name] = ""
+			}
+		default:
+			headersMap[name] = joined
+		}
+	}
+	// body 预览限长，避免泄露与过大日志
+	var bodyPreview string
+	if len(jsonData) > 0 {
+		const maxLogBody = 1024
+		if len(jsonData) > maxLogBody {
+			bodyPreview = string(jsonData[:maxLogBody]) + "...(truncated)"
+		} else {
+			bodyPreview = string(jsonData)
+		}
 	}
 	util.Debugw("发送 HTTP POST 请求", map[string]interface{}{
-		"url":     url,
-		"headers": headersMap,
-		"body":    string(jsonData),
+		"url":          url,
+		"headers":      headersMap,
+		"body_preview": bodyPreview,
+		"body_len":     len(jsonData),
 	})
 
 	resp, err := c.client.Do(req)
@@ -203,7 +232,7 @@ func (c *AIHTTPClient) handleHTTPError(resp *http.Response) error {
 	case 401:
 		return NewAIErrorWithDetails(ErrCodeAPIKeyMissing, "Unauthorized", string(body), nil)
 	case 403:
-		return NewAIErrorWithDetails(ErrCodeAPIKeyMissing, "Forbidden", string(body), nil)
+		return NewAIErrorWithDetails(ErrCodeForbidden, "Forbidden", string(body), nil)
 	case 429:
 		return NewAIErrorWithDetails(ErrCodeRateLimited, "Rate Limited", string(body), nil)
 	case 500, 502, 503, 504:

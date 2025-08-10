@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	cfg "ai-ops/internal/config"
 	"ai-ops/internal/tools"
 	"ai-ops/internal/util"
 )
@@ -14,18 +15,18 @@ import (
 type GeminiClient struct {
 	*BaseAdapter // 嵌入基础适配器
 	httpClient   *RetryableHTTPClient
-	config       ModelConfig
+	config       cfg.ModelConfig
 	modelInfo    ModelInfo
 }
 
 // NewGeminiClient 创建新的 Gemini 客户端（保持向后兼容）
-func NewGeminiClient(config ModelConfig) (*GeminiClient, error) {
+func NewGeminiClient(config cfg.ModelConfig) (*GeminiClient, error) {
 	return createGeminiClient(config)
 }
 
 // NewGeminiAdapter 创建新的 Gemini 适配器（工厂函数）
 func NewGeminiAdapter(config interface{}) (ModelAdapter, error) {
-	modelConfig, ok := config.(ModelConfig)
+	modelConfig, ok := config.(cfg.ModelConfig)
 	if !ok {
 		return nil, NewAIError(ErrCodeInvalidConfig, "invalid config type for Gemini adapter", nil)
 	}
@@ -33,27 +34,30 @@ func NewGeminiAdapter(config interface{}) (ModelAdapter, error) {
 }
 
 // createGeminiClient 内部函数，创建 Gemini 客户端实例
-func createGeminiClient(config ModelConfig) (*GeminiClient, error) {
-	if config.APIKey == "" {
+func createGeminiClient(modelCfg cfg.ModelConfig) (*GeminiClient, error) {
+	if modelCfg.APIKey == "" {
 		return nil, NewAIError(ErrCodeAPIKeyMissing, "Gemini API key is required", nil)
 	}
 
-	baseURL := config.BaseURL
+	baseURL := modelCfg.BaseURL
 	if baseURL == "" {
 		// 使用 v1beta 端点
 		baseURL = "https://generativelanguage.googleapis.com/v1beta/"
 	}
 
-	timeout := time.Duration(config.Timeout) * time.Second
-	if timeout == 0 {
+	// 获取超时配置，从全局 AI 配置或默认值
+	var timeout time.Duration
+	if cfg.Config != nil && cfg.Config.AI.Timeout > 0 {
+		timeout = time.Duration(cfg.Config.AI.Timeout) * time.Second
+	} else {
 		timeout = 60 * time.Second // Gemini 可能需要更长的时间
 	}
 
 	httpClient := NewRetryableHTTPClient(baseURL, timeout, 3, time.Second)
 	// Gemini API 使用 x-goog-api-key header 进行认证
-	httpClient.SetHeader("x-goog-api-key", config.APIKey)
+	httpClient.SetHeader("x-goog-api-key", modelCfg.APIKey)
 
-	modelName := config.Model
+	modelName := modelCfg.Model
 	if modelName == "" {
 		modelName = "gemini-2.0-flash-exp"
 	}
@@ -112,7 +116,7 @@ func createGeminiClient(config ModelConfig) (*GeminiClient, error) {
 	client := &GeminiClient{
 		BaseAdapter: baseAdapter,
 		httpClient:  httpClient,
-		config:      config,
+		config:      modelCfg,
 		modelInfo: ModelInfo{
 			Name:         modelName,
 			Type:         "gemini",
@@ -122,7 +126,7 @@ func createGeminiClient(config ModelConfig) (*GeminiClient, error) {
 	}
 
 	// 初始化适配器
-	if err := client.Initialize(context.Background(), config); err != nil {
+	if err := client.Initialize(context.Background(), modelCfg); err != nil {
 		return nil, NewAIError(ErrCodeClientCreationFailed, "failed to initialize Gemini adapter", err)
 	}
 
@@ -174,9 +178,9 @@ func (c *GeminiClient) GetModelInfo() ModelInfo {
 
 // ValidateConfig 验证 Gemini 配置
 func (c *GeminiClient) ValidateConfig(config interface{}) error {
-	modelConfig, ok := config.(ModelConfig)
+	modelConfig, ok := config.(cfg.ModelConfig)
 	if !ok {
-		return NewAIError(ErrCodeInvalidConfig, "config must be of type ModelConfig", nil)
+		return NewAIError(ErrCodeInvalidConfig, "config must be of type cfg.ModelConfig", nil)
 	}
 
 	if modelConfig.APIKey == "" {
@@ -203,10 +207,6 @@ func (c *GeminiClient) ValidateConfig(config interface{}) error {
 				"model": modelConfig.Model,
 			})
 		}
-	}
-
-	if modelConfig.Timeout < 0 {
-		return NewAIError(ErrCodeInvalidConfig, "timeout cannot be negative", nil)
 	}
 
 	return nil
@@ -416,9 +416,9 @@ type SafetyRating struct {
 
 // validateGeminiConfig Gemini 配置验证器
 func validateGeminiConfig(config interface{}) error {
-	modelConfig, ok := config.(ModelConfig)
+	modelConfig, ok := config.(cfg.ModelConfig)
 	if !ok {
-		return NewAIError(ErrCodeInvalidConfig, "config must be of type ModelConfig", nil)
+		return NewAIError(ErrCodeInvalidConfig, "config must be of type cfg.ModelConfig", nil)
 	}
 
 	if modelConfig.APIKey == "" {

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	cfg "ai-ops/internal/config"
 	"ai-ops/internal/tools"
 	"ai-ops/internal/util"
 )
@@ -14,18 +15,18 @@ import (
 type OpenAIClient struct {
 	*BaseAdapter // 嵌入基础适配器
 	httpClient   *RetryableHTTPClient
-	config       ModelConfig
+	config       cfg.ModelConfig
 	modelInfo    ModelInfo
 }
 
 // NewOpenAIClient 创建新的 OpenAI 客户端（保持向后兼容）
-func NewOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
+func NewOpenAIClient(config cfg.ModelConfig) (*OpenAIClient, error) {
 	return createOpenAIClient(config)
 }
 
 // NewOpenAIAdapter 创建新的 OpenAI 适配器（工厂函数）
 func NewOpenAIAdapter(config interface{}) (ModelAdapter, error) {
-	modelConfig, ok := config.(ModelConfig)
+	modelConfig, ok := config.(cfg.ModelConfig)
 	if !ok {
 		return nil, NewAIError(ErrCodeInvalidConfig, "invalid config type for OpenAI adapter", nil)
 	}
@@ -33,20 +34,20 @@ func NewOpenAIAdapter(config interface{}) (ModelAdapter, error) {
 }
 
 // createOpenAIClient 内部函数，创建 OpenAI 客户端实例
-func createOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
-	if config.APIKey == "" {
+func createOpenAIClient(modelCfg cfg.ModelConfig) (*OpenAIClient, error) {
+	if modelCfg.APIKey == "" {
 		return nil, NewAIError(ErrCodeAPIKeyMissing, "OpenAI API key is required", nil)
 	}
 
 	// 规范化 base URL，支持 style 路径风格
 	// 规则：
-	// - raw := strings.TrimRight(config.BaseURL, "/")
+	// - raw := strings.TrimRight(modelCfg.BaseURL, "/")
 	// - 若 raw 为空：保持旧行为，使用完整 Chat Completions 端点
 	// - 若 raw 已包含 "/chat/completions" 或 "/responses"：视为完整 endpoint，直接使用
 	// - 否则根据 style 拼接：
 	//     style == "responses"（不区分大小写）→ raw + "/responses"
 	//     其他（含空/未知） → raw + "/chat/completions"
-	raw := strings.TrimRight(config.BaseURL, "/")
+	raw := strings.TrimRight(modelCfg.BaseURL, "/")
 	var effectiveBaseURL string
 	if raw == "" {
 		effectiveBaseURL = "https://api.openai.com/v1/chat/completions"
@@ -55,7 +56,7 @@ func createOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 		if strings.Contains(lower, "/chat/completions") || strings.Contains(lower, "/responses") {
 			effectiveBaseURL = raw
 		} else {
-			if strings.EqualFold(config.Style, "responses") {
+			if strings.EqualFold(modelCfg.Style, "responses") {
 				effectiveBaseURL = raw + "/responses"
 			} else {
 				effectiveBaseURL = raw + "/chat/completions"
@@ -63,15 +64,18 @@ func createOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 		}
 	}
 
-	timeout := time.Duration(config.Timeout) * time.Second
-	if timeout == 0 {
+	// 获取超时配置，从全局 AI 配置或默认值
+	var timeout time.Duration
+	if cfg.Config != nil && cfg.Config.AI.Timeout > 0 {
+		timeout = time.Duration(cfg.Config.AI.Timeout) * time.Second
+	} else {
 		timeout = 30 * time.Second
 	}
 
 	httpClient := NewRetryableHTTPClient(effectiveBaseURL, timeout, 3, time.Second)
-	httpClient.SetHeader("Authorization", "Bearer "+config.APIKey)
+	httpClient.SetHeader("Authorization", "Bearer "+modelCfg.APIKey)
 
-	modelName := config.Model
+	modelName := modelCfg.Model
 	if modelName == "" {
 		modelName = "gpt-4o-mini"
 	}
@@ -141,7 +145,7 @@ func createOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 	client := &OpenAIClient{
 		BaseAdapter: baseAdapter,
 		httpClient:  httpClient,
-		config:      config,
+		config:      modelCfg,
 		modelInfo: ModelInfo{
 			Name:         modelName,
 			Type:         "openai",
@@ -151,7 +155,7 @@ func createOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 	}
 
 	// 初始化适配器
-	if err := client.Initialize(context.Background(), config); err != nil {
+	if err := client.Initialize(context.Background(), modelCfg); err != nil {
 		return nil, NewAIError(ErrCodeClientCreationFailed, "failed to initialize OpenAI adapter", err)
 	}
 	// 默认启用提供商特定错误映射，便于统一错误语义
@@ -161,7 +165,7 @@ func createOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 		"model":      modelName,
 		"max_tokens": maxTokens,
 		"base_url":   effectiveBaseURL,
-		"style":      config.Style,
+		"style":      modelCfg.Style,
 	})
 
 	return client, nil
@@ -202,9 +206,9 @@ func (c *OpenAIClient) GetModelInfo() ModelInfo {
 
 // ValidateConfig 验证 OpenAI 配置
 func (c *OpenAIClient) ValidateConfig(config interface{}) error {
-	modelConfig, ok := config.(ModelConfig)
+	modelConfig, ok := config.(cfg.ModelConfig)
 	if !ok {
-		return NewAIError(ErrCodeInvalidConfig, "config must be of type ModelConfig", nil)
+		return NewAIError(ErrCodeInvalidConfig, "config must be of type cfg.ModelConfig", nil)
 	}
 
 	if modelConfig.APIKey == "" {
@@ -231,10 +235,6 @@ func (c *OpenAIClient) ValidateConfig(config interface{}) error {
 				"model": modelConfig.Model,
 			})
 		}
-	}
-
-	if modelConfig.Timeout < 0 {
-		return NewAIError(ErrCodeInvalidConfig, "timeout cannot be negative", nil)
 	}
 
 	return nil
@@ -443,9 +443,9 @@ type OpenAIUsage struct {
 
 // validateOpenAIConfig OpenAI 配置验证器
 func validateOpenAIConfig(config interface{}) error {
-	modelConfig, ok := config.(ModelConfig)
+	modelConfig, ok := config.(cfg.ModelConfig)
 	if !ok {
-		return NewAIError(ErrCodeInvalidConfig, "config must be of type ModelConfig", nil)
+		return NewAIError(ErrCodeInvalidConfig, "config must be of type cfg.ModelConfig", nil)
 	}
 
 	if modelConfig.APIKey == "" {

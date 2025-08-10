@@ -1,6 +1,7 @@
 package util
 
 import (
+	"encoding/json"
 	"fmt"
 	"io"
 	"log"
@@ -137,17 +138,26 @@ func (l *Logger) logText(timestamp, levelName string, level LogLevel, message st
 
 // JSON格式日志
 func (l *Logger) logJSON(timestamp, levelName, message string, fields map[string]interface{}) {
-	var output strings.Builder
-	output.WriteString(fmt.Sprintf(`{"timestamp":"%s","level":"%s","message":"%s"`,
-		timestamp, levelName, message))
-
-	// 添加字段
-	for key, value := range fields {
-		output.WriteString(fmt.Sprintf(`,"%s":"%v"`, key, value))
+	data := map[string]interface{}{
+		"timestamp": timestamp,
+		"level":     levelName,
+		"message":   message,
 	}
-
-	output.WriteString("}")
-	l.logger.Println(output.String())
+	if len(fields) > 0 {
+		for k, v := range fields {
+			if err, ok := v.(error); ok {
+				data[k] = err.Error()
+			} else {
+				data[k] = v
+			}
+		}
+	}
+	b, err := json.Marshal(data)
+	if err != nil {
+		l.logger.Println(fmt.Sprintf("[%s] %s %s | marshal_error=%v", timestamp, levelName, message, err))
+		return
+	}
+	l.logger.Println(string(b))
 }
 
 // Debug级别日志
@@ -282,6 +292,13 @@ func LogErrorWithFields(err error, context string, extraFields map[string]interf
 func InitLogger(level, format, output, file string) error {
 	logLevel := ParseLogLevel(level)
 
+	// 关闭旧的文件句柄（如有）
+	if DefaultLogger != nil {
+		if f, ok := DefaultLogger.output.(*os.File); ok && f != os.Stdout && f != os.Stderr {
+			_ = f.Close()
+		}
+	}
+
 	var writer io.Writer
 	var enableColor bool
 
@@ -309,10 +326,4 @@ func InitLogger(level, format, output, file string) error {
 
 	DefaultLogger = NewLogger(logLevel, format, writer, enableColor)
 	return nil
-}
-
-// FileExists 检查文件是否存在
-func FileExists(filename string) bool {
-	_, err := os.Stat(filename)
-	return !os.IsNotExist(err)
 }

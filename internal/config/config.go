@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"ai-ops/internal/util"
+
 	"github.com/BurntSushi/toml"
 )
 
@@ -71,7 +73,7 @@ func LoadConfig(configPath string) error {
 		if err := createDefaultConfig(configPath); err != nil {
 			return fmt.Errorf("创建默认配置文件失败: %w", err)
 		}
-		fmt.Printf("已创建默认配置文件: %s\n", configPath)
+		util.Infow("已创建默认配置文件", map[string]interface{}{"path": configPath})
 	}
 
 	// 解析TOML配置文件
@@ -95,7 +97,7 @@ func LoadConfig(configPath string) error {
 
 // 获取默认配置文件路径
 func getDefaultConfigPath() string {
-	// 优先使用当前目录下的configs/config.toml
+	// 优先使用当前目录下的 config.toml
 	if _, err := os.Stat("config.toml"); err == nil {
 		return "config.toml"
 	}
@@ -161,12 +163,15 @@ func overrideWithEnv(config *AppConfig) {
 	for name, model := range config.AI.Models {
 		if apiKey := getEnvForModel(name, "API_KEY"); apiKey != "" {
 			model.APIKey = apiKey
-			config.AI.Models[name] = model
 		}
 		if baseURL := getEnvForModel(name, "BASE_URL"); baseURL != "" {
 			model.BaseURL = baseURL
-			config.AI.Models[name] = model
 		}
+		if style := getEnvForModel(name, "STYLE"); style != "" {
+			model.Style = style
+		}
+		// 一次性写回，避免多次赋值
+		config.AI.Models[name] = model
 	}
 
 	// 天气API配置
@@ -180,6 +185,15 @@ func overrideWithEnv(config *AppConfig) {
 	// 日志配置
 	if level := os.Getenv("LOG_LEVEL"); level != "" {
 		config.Logging.Level = level
+	}
+	if format := os.Getenv("LOG_FORMAT"); format != "" {
+		config.Logging.Format = format
+	}
+	if output := os.Getenv("LOG_OUTPUT"); output != "" {
+		config.Logging.Output = output
+	}
+	if file := os.Getenv("LOG_FILE"); file != "" {
+		config.Logging.File = file
 	}
 }
 

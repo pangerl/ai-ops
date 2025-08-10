@@ -1,6 +1,7 @@
 package ai
 
 import (
+	cfg "ai-ops/internal/config"
 	"ai-ops/internal/tools"
 	"context"
 	"fmt"
@@ -55,21 +56,11 @@ type ModelInfo struct {
 	SupportTools bool   `json:"support_tools"`
 }
 
-// ModelConfig 模型配置
-type ModelConfig struct {
-	Type    string `toml:"type"` // "gemini" 或 "openai"
-	APIKey  string `toml:"api_key"`
-	BaseURL string `toml:"base_url"`
-	Model   string `toml:"model"`
-	Timeout int    `toml:"timeout"` // 超时时间（秒）
-	Style   string `toml:"style" json:"style,omitempty"`
-}
-
 // ClientManager AI 客户端管理器
 type ClientManager struct {
 	clients       map[string]AIClient
 	defaultClient string
-	configs       map[string]ModelConfig
+	configs       map[string]cfg.ModelConfig
 	retryConfig   RetryConfig
 	registry      *AdapterRegistry // 适配器注册表
 }
@@ -85,7 +76,7 @@ type RetryConfig struct {
 func NewClientManager() *ClientManager {
 	return &ClientManager{
 		clients: make(map[string]AIClient),
-		configs: make(map[string]ModelConfig),
+		configs: make(map[string]cfg.ModelConfig),
 		retryConfig: RetryConfig{
 			MaxRetries: 3,
 			RetryDelay: time.Second,
@@ -96,7 +87,7 @@ func NewClientManager() *ClientManager {
 }
 
 // RegisterClient 注册 AI 客户端
-func (cm *ClientManager) RegisterClient(name string, client AIClient, config ModelConfig) {
+func (cm *ClientManager) RegisterClient(name string, client AIClient, config cfg.ModelConfig) {
 	cm.clients[name] = client
 	cm.configs[name] = config
 }
@@ -142,7 +133,7 @@ func (cm *ClientManager) ListClients() []string {
 }
 
 // GetConfig 获取客户端配置
-func (cm *ClientManager) GetConfig(name string) (ModelConfig, bool) {
+func (cm *ClientManager) GetConfig(name string) (cfg.ModelConfig, bool) {
 	config, exists := cm.configs[name]
 	return config, exists
 }
@@ -158,7 +149,7 @@ func (cm *ClientManager) GetRetryConfig() RetryConfig {
 }
 
 // CreateClientFromConfig 根据配置创建客户端
-func (cm *ClientManager) CreateClientFromConfig(name string, config ModelConfig) error {
+func (cm *ClientManager) CreateClientFromConfig(name string, config cfg.ModelConfig) error {
 	// 优先使用适配器注册表创建客户端
 	if cm.registry != nil && cm.registry.HasAdapterType(config.Type) {
 		adapter, err := cm.registry.CreateAdapter(name, config.Type, config)

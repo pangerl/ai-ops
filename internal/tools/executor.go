@@ -40,7 +40,6 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 	for i := 0; i <= e.maxRetries; i++ {
 		// 创建带超时的上下文
 		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
-		defer cancel()
 
 		util.Infow("开始工具执行（尝试）", map[string]any{
 			"tool_name":  call.Name,
@@ -56,6 +55,8 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 		if err != nil {
 			// 检查是否是超时错误
 			if timeoutCtx.Err() == context.DeadlineExceeded {
+				// 先释放本轮上下文资源
+				cancel()
 				util.LogErrorWithFields(err, "工具执行超时", map[string]any{
 					"tool_name":  call.Name,
 					"call_id":    call.ID,
@@ -68,6 +69,8 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 
 			// 判断是否是可重试的错误
 			if i < e.maxRetries && shouldRetry(err) {
+				// 释放本轮上下文资源再重试
+				cancel()
 				util.Warnw("工具执行失败，准备重试", map[string]any{
 					"tool_name":   call.Name,
 					"call_id":     call.ID,
@@ -78,11 +81,13 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 				continue // 进入下一次重试
 			}
 
-			// 如果不可重试或已达最大次数，则返回错误
+			// 不可重试或已达最大次数
+			cancel()
 			return "", err
 		}
 
-		// 执行成功，直接返回结果
+		// 执行成功，释放本轮上下文资源并返回结果
+		cancel()
 		util.Infow("工具执行成功", map[string]any{
 			"tool_name":     call.Name,
 			"call_id":       call.ID,

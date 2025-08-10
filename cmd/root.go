@@ -95,20 +95,12 @@ func initializeAIClients() error {
 
 	// 从配置中创建和注册客户端
 	for name, modelConfig := range config.Config.AI.Models {
-		// 将 config.ModelConfig 转换为 ai.ModelConfig
-		aiModelConfig := ai.ModelConfig{
-			Type:    modelConfig.Type,
-			APIKey:  modelConfig.APIKey,
-			BaseURL: modelConfig.BaseURL,
-			Model:   modelConfig.Model,
-			Timeout: config.Config.AI.Timeout,
-		}
-
-		if err := aiManager.CreateClientFromConfig(name, aiModelConfig); err != nil {
+		// 直接使用统一的 config.ModelConfig 类型
+		if err := aiManager.CreateClientFromConfig(name, modelConfig); err != nil {
 			util.Warnw(fmt.Sprintf("创建 AI 客户端 '%s' 失败", name), map[string]interface{}{"error": err})
 			continue // 即使某个客户端失败，也继续尝试其他客户端
 		}
-		util.Debugw("AI 客户端已创建", map[string]interface{}{"name": name, "type": aiModelConfig.Type, "model": aiModelConfig.Model})
+		util.Debugw("AI 客户端已创建", map[string]interface{}{"name": name, "type": modelConfig.Type, "model": modelConfig.Model})
 	}
 
 	// 检查是否有任何客户端被成功创建
