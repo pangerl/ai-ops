@@ -33,6 +33,7 @@ type ModelConfig struct {
 	APIKey  string `toml:"api_key"`
 	BaseURL string `toml:"base_url"`
 	Model   string `toml:"model"`
+	Style   string `toml:"style" json:"style,omitempty"`
 }
 
 // 日志配置

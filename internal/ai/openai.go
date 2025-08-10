@@ -38,10 +38,29 @@ func createOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 		return nil, NewAIError(ErrCodeAPIKeyMissing, "OpenAI API key is required", nil)
 	}
 
-	baseURL := config.BaseURL
-	if baseURL == "" {
-		// 与配置文件约定保持一致：默认使用完整 Chat Completions 端点
-		baseURL = "https://api.openai.com/v1/chat/completions"
+	// 规范化 base URL，支持 style 路径风格
+	// 规则：
+	// - raw := strings.TrimRight(config.BaseURL, "/")
+	// - 若 raw 为空：保持旧行为，使用完整 Chat Completions 端点
+	// - 若 raw 已包含 "/chat/completions" 或 "/responses"：视为完整 endpoint，直接使用
+	// - 否则根据 style 拼接：
+	//     style == "responses"（不区分大小写）→ raw + "/responses"
+	//     其他（含空/未知） → raw + "/chat/completions"
+	raw := strings.TrimRight(config.BaseURL, "/")
+	var effectiveBaseURL string
+	if raw == "" {
+		effectiveBaseURL = "https://api.openai.com/v1/chat/completions"
+	} else {
+		lower := strings.ToLower(raw)
+		if strings.Contains(lower, "/chat/completions") || strings.Contains(lower, "/responses") {
+			effectiveBaseURL = raw
+		} else {
+			if strings.EqualFold(config.Style, "responses") {
+				effectiveBaseURL = raw + "/responses"
+			} else {
+				effectiveBaseURL = raw + "/chat/completions"
+			}
+		}
 	}
 
 	timeout := time.Duration(config.Timeout) * time.Second
@@ -49,7 +68,7 @@ func createOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 		timeout = 30 * time.Second
 	}
 
-	httpClient := NewRetryableHTTPClient(baseURL, timeout, 3, time.Second)
+	httpClient := NewRetryableHTTPClient(effectiveBaseURL, timeout, 3, time.Second)
 	httpClient.SetHeader("Authorization", "Bearer "+config.APIKey)
 
 	modelName := config.Model
@@ -141,7 +160,8 @@ func createOpenAIClient(config ModelConfig) (*OpenAIClient, error) {
 	util.Debugw("OpenAI 适配器创建成功", map[string]interface{}{
 		"model":      modelName,
 		"max_tokens": maxTokens,
-		"base_url":   baseURL,
+		"base_url":   effectiveBaseURL,
+		"style":      config.Style,
 	})
 
 	return client, nil

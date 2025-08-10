@@ -62,6 +62,7 @@ type ModelConfig struct {
 	BaseURL string `toml:"base_url"`
 	Model   string `toml:"model"`
 	Timeout int    `toml:"timeout"` // 超时时间（秒）
+	Style   string `toml:"style" json:"style,omitempty"`
 }
 
 // ClientManager AI 客户端管理器
