@@ -24,18 +24,36 @@ type ToolManager interface {
 
 	// GetToolDefinitions 获取工具定义列表
 	GetToolDefinitions() []ToolDefinition
+
+	// GetSourceManager 获取工具源管理器
+	GetSourceManager() ToolSourceManager
 }
 
 // DefaultToolManager 默认工具管理器实现
 type DefaultToolManager struct {
-	registry *ToolRegistry // 工具注册表
+	registry      *ToolRegistry     // 工具注册表
+	sourceManager ToolSourceManager // 工具源管理器
 }
 
 // NewToolManager 创建新的工具管理器
 func NewToolManager() ToolManager {
 	return &DefaultToolManager{
-		registry: NewToolRegistry(),
+		registry:      NewToolRegistry(),
+		sourceManager: NewToolSourceManager(),
 	}
+}
+
+// NewToolManagerWithSourceManager 创建带有指定工具源管理器的工具管理器
+func NewToolManagerWithSourceManager(sourceManager ToolSourceManager) ToolManager {
+	return &DefaultToolManager{
+		registry:      NewToolRegistry(),
+		sourceManager: sourceManager,
+	}
+}
+
+// GetSourceManager 获取工具源管理器
+func (m *DefaultToolManager) GetSourceManager() ToolSourceManager {
+	return m.sourceManager
 }
 
 // RegisterTool 注册工具

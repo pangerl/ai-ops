@@ -28,6 +28,10 @@ const (
 	ErrCodeMCPNotConnected     = "MCP_NOT_CONNECTED"     // MCP未连接
 	ErrCodeMCPToolListFailed   = "MCP_TOOL_LIST_FAILED"  // MCP工具列表获取失败
 	ErrCodeMCPToolCallFailed   = "MCP_TOOL_CALL_FAILED"  // MCP工具调用失败
+
+	// 工具源相关错误代码
+	ErrCodeInvalidState           = "INVALID_STATE"            // 无效状态
+	ErrCodeToolRegistrationFailed = "TOOL_REGISTRATION_FAILED" // 工具注册失败
 )
 
 // 应用错误结构
