@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"ai-ops/internal/common/errors"
 	cfg "ai-ops/internal/config"
 	"ai-ops/internal/tools"
 	"context"
@@ -117,7 +118,7 @@ func (cm *ClientManager) GetDefaultClient() AIClient {
 // SetDefaultClient 设置默认客户端
 func (cm *ClientManager) SetDefaultClient(name string) error {
 	if _, exists := cm.clients[name]; !exists {
-		return ErrClientNotFound
+		return errors.WrapError(errors.ErrCodeClientNotFound, "client not found", fmt.Errorf("client name: %s", name))
 	}
 	cm.defaultClient = name
 	return nil
@@ -154,7 +155,7 @@ func (cm *ClientManager) CreateClientFromConfig(name string, config cfg.ModelCon
 	if cm.registry != nil && cm.registry.HasAdapterType(config.Type) {
 		adapter, err := cm.registry.CreateAdapter(name, config.Type, config)
 		if err != nil {
-			return NewAIError(ErrCodeClientCreationFailed, fmt.Sprintf("failed to create adapter for '%s'", name), err)
+			return NewClientCreationFailedError(fmt.Sprintf("failed to create adapter for '%s'", name), err)
 		}
 
 		// 将适配器作为 AIClient 注册
@@ -172,11 +173,11 @@ func (cm *ClientManager) CreateClientFromConfig(name string, config cfg.ModelCon
 	case "openai":
 		client, err = NewOpenAIClient(config)
 	default:
-		return NewAIError(ErrCodeModelNotSupported, fmt.Sprintf("unsupported model type: %s", config.Type), nil)
+		return errors.NewError(errors.ErrCodeModelNotSupported, fmt.Sprintf("unsupported model type: %s", config.Type))
 	}
 
 	if err != nil {
-		return NewAIError(ErrCodeClientCreationFailed, fmt.Sprintf("failed to create client for '%s'", name), err)
+		return errors.WrapError(errors.ErrCodeClientCreationFailed, fmt.Sprintf("failed to create client for '%s'", name), err)
 	}
 
 	cm.RegisterClient(name, client, config)
@@ -186,7 +187,7 @@ func (cm *ClientManager) CreateClientFromConfig(name string, config cfg.ModelCon
 // SwitchToClient 切换到指定客户端
 func (cm *ClientManager) SwitchToClient(name string) error {
 	if _, exists := cm.clients[name]; !exists {
-		return NewAIError(ErrCodeClientNotFound, fmt.Sprintf("client not found: %s", name), nil)
+		return errors.NewError(errors.ErrCodeClientNotFound, fmt.Sprintf("client not found: %s", name))
 	}
 
 	cm.defaultClient = name
@@ -218,7 +219,7 @@ func (cm *ClientManager) SendMessageWithFallback(ctx context.Context, messages [
 		return nil, err
 	}
 
-	return nil, NewAIError(ErrCodeClientNotFound, "no available clients", nil)
+	return nil, NewClientNotFoundError("no available clients", nil)
 }
 
 // sendMessageWithRetry 带重试的消息发送
@@ -233,7 +234,7 @@ func (cm *ClientManager) sendMessageWithRetry(ctx context.Context, client AIClie
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():
-				return nil, NewAIError(ErrCodeContextCanceled, "request context canceled", ctx.Err())
+				return nil, errors.WrapError(errors.ErrCodeContextCanceled, "request context canceled", ctx.Err())
 			case <-time.After(cm.retryConfig.RetryDelay):
 			}
 		}
@@ -256,6 +257,17 @@ func (cm *ClientManager) sendMessageWithRetry(ctx context.Context, client AIClie
 
 // shouldRetry 判断是否应该重试
 func (cm *ClientManager) shouldRetry(err error) bool {
+	// 检查是否是 AppError
+	if appErr, ok := err.(*errors.AppError); ok {
+		switch appErr.Code {
+		case errors.ErrCodeNetworkFailed, errors.ErrCodeTimeout, errors.ErrCodeRateLimited:
+			return true
+		default:
+			return false
+		}
+	}
+
+	// 检查是否是 AIError（为了向后兼容）
 	if aiErr, ok := err.(*AIError); ok {
 		switch aiErr.Code {
 		case ErrCodeNetworkFailed, ErrCodeTimeout, ErrCodeRateLimited:
@@ -269,6 +281,17 @@ func (cm *ClientManager) shouldRetry(err error) bool {
 
 // shouldFallback 判断是否应该故障转移
 func (cm *ClientManager) shouldFallback(err error) bool {
+	// 检查是否是 AppError
+	if appErr, ok := err.(*errors.AppError); ok {
+		switch appErr.Code {
+		case errors.ErrCodeNetworkFailed, errors.ErrCodeTimeout:
+			return true
+		default:
+			return false
+		}
+	}
+
+	// 检查是否是 AIError（为了向后兼容）
 	if aiErr, ok := err.(*AIError); ok {
 		switch aiErr.Code {
 		case ErrCodeNetworkFailed, ErrCodeTimeout:
@@ -284,7 +307,7 @@ func (cm *ClientManager) shouldFallback(err error) bool {
 func (cm *ClientManager) GetClientStatus(name string) (*ClientStatus, error) {
 	client, exists := cm.GetClient(name)
 	if !exists {
-		return nil, NewAIError(ErrCodeClientNotFound, fmt.Sprintf("client not found: %s", name), nil)
+		return nil, errors.NewError(errors.ErrCodeClientNotFound, fmt.Sprintf("client not found: %s", name))
 	}
 
 	config, _ := cm.GetConfig(name)
@@ -375,7 +398,7 @@ func (cm *ClientManager) GetAllAdapterInfos() map[string]AdapterInfo {
 // ValidateAdapterConfig 验证指定类型的适配器配置
 func (cm *ClientManager) ValidateAdapterConfig(adapterType string, config interface{}) error {
 	if cm.registry == nil {
-		return NewAIError(ErrCodeInvalidConfig, "adapter registry not available", nil)
+		return errors.NewError(errors.ErrCodeInvalidConfig, "adapter registry not available")
 	}
 	return cm.registry.ValidateConfig(adapterType, config)
 }
@@ -384,7 +407,7 @@ func (cm *ClientManager) ValidateAdapterConfig(adapterType string, config interf
 func (cm *ClientManager) GetAdapterStatus(name string) (*AdapterStatus, error) {
 	client, exists := cm.GetClient(name)
 	if !exists {
-		return nil, NewAIError(ErrCodeClientNotFound, fmt.Sprintf("client not found: %s", name), nil)
+		return nil, errors.NewError(errors.ErrCodeClientNotFound, fmt.Sprintf("client not found: %s", name))
 	}
 
 	config, _ := cm.GetConfig(name)
@@ -456,14 +479,6 @@ func (cm *ClientManager) HealthCheckAll(ctx context.Context) map[string]error {
 	}
 
 	return results
-}
-
-// GetRegistryStats 获取注册表统计信息
-func (cm *ClientManager) GetRegistryStats() RegistryStats {
-	if cm.registry == nil {
-		return RegistryStats{}
-	}
-	return cm.registry.GetStats()
 }
 
 // 删除了ModelSwitcher相关代码，简化客户端管理

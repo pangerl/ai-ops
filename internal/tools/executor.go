@@ -6,6 +6,7 @@ import (
 	"slices"
 	"time"
 
+	"ai-ops/internal/common/errors"
 	"ai-ops/internal/util"
 )
 
@@ -63,7 +64,7 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 					"timeout_ms": timeoutMs,
 				})
 				// 超时是最终错误，不应重试
-				return "", util.NewErrorWithDetail(util.ErrCodeToolExecutionFailed, "工具执行超时",
+				return "", util.NewToolErrorWithDetails("工具执行超时",
 					fmt.Sprintf("工具 %s 执行超过 %d 毫秒", call.Name, timeoutMs))
 			}
 
@@ -102,12 +103,12 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 
 // shouldRetry 判断错误是否应该重试
 func shouldRetry(err error) bool {
-	errorCode := util.GetErrorCode(err)
+	errorCode := errors.GetErrorCode(err)
 
 	// 定义可重试的错误码
 	retryableCodes := []string{
-		util.ErrCodeNetworkFailed,
-		util.ErrCodeInternalErr,
+		errors.ErrCodeNetworkFailed,
+		errors.ErrCodeInternalErr,
 	}
 
 	return slices.Contains(retryableCodes, errorCode)

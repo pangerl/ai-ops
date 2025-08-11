@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"ai-ops/internal/common/errors"
 	"ai-ops/internal/util"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -29,6 +30,16 @@ func (t *MCPTool) Name() string {
 // Description 获取工具描述
 func (t *MCPTool) Description() string {
 	return fmt.Sprintf("[MCP:%s] %s", t.serverName, t.toolInfo.Description)
+}
+
+// ID 获取工具的唯一标识符
+func (t *MCPTool) ID() string {
+	return t.Name()
+}
+
+// Type 获取工具类型
+func (t *MCPTool) Type() string {
+	return "mcp"
 }
 
 // Parameters 获取工具参数schema
@@ -113,8 +124,9 @@ func (t *MCPTool) Execute(ctx context.Context, args map[string]any) (string, err
 
 	result, err := t.session.CallTool(ctx, params)
 	if err != nil {
-		return "", util.WrapError(util.ErrCodeMCPToolCallFailed,
-			fmt.Sprintf("MCP工具执行失败: %s", t.Name()), err)
+		return "", errors.WrapErrorWithDetails(errors.ErrCodeMCPToolCallFailed,
+			"MCP工具执行失败", err,
+			fmt.Sprintf("工具名称: %s", t.Name()))
 	}
 
 	if result.IsError {
@@ -124,8 +136,9 @@ func (t *MCPTool) Execute(ctx context.Context, args map[string]any) (string, err
 				errMsg = textContent.Text
 			}
 		}
-		return "", util.NewError(util.ErrCodeMCPToolCallFailed,
-			fmt.Sprintf("调用MCP工具失败: %s - %s", t.Name(), errMsg))
+		return "", errors.NewErrorWithDetails(errors.ErrCodeMCPToolCallFailed,
+			"调用MCP工具失败",
+			fmt.Sprintf("工具名称: %s, 错误信息: %s", t.Name(), errMsg))
 	}
 
 	var resultStr string

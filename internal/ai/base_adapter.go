@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"ai-ops/internal/common/errors"
 	"ai-ops/internal/tools"
 	"ai-ops/internal/util"
 	"context"
@@ -49,7 +50,7 @@ func (b *BaseAdapter) HealthCheck(ctx context.Context) error {
 	b.mu.RUnlock()
 
 	if !initialized {
-		return NewAIError(ErrCodeInvalidConfig, "adapter not initialized", nil)
+		return errors.NewError(errors.ErrCodeInvalidConfig, "adapter not initialized")
 	}
 
 	return nil

@@ -2,9 +2,11 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"path/filepath"
 	"time"
 
+	"ai-ops/internal/common/errors"
 	"ai-ops/internal/tools"
 	"ai-ops/internal/util"
 )
@@ -47,17 +49,19 @@ func (s *MCPService) Initialize(ctx context.Context) error {
 
 	// 加载配置
 	if err := s.manager.LoadSettings(s.configPath); err != nil {
-		return util.WrapError(util.ErrCodeConfigLoadFailed, "加载MCP配置失败", err)
+		return errors.WrapErrorWithDetails(errors.ErrCodeConfigLoadFailed,
+			"加载MCP配置失败", err,
+			fmt.Sprintf("配置文件路径: %s", s.configPath))
 	}
 
 	// 初始化客户端
 	if err := s.manager.InitializeClients(ctx); err != nil {
-		return util.WrapError(util.ErrCodeMCPConnectionFailed, "初始化MCP客户端失败", err)
+		return errors.WrapError(errors.ErrCodeMCPConnectionFailed, "初始化MCP客户端失败", err)
 	}
 
 	// 注册工具
 	if err := s.registry.RegisterMCPTools(ctx); err != nil {
-		return util.WrapError(util.ErrCodeInitializationFailed, "注册MCP工具失败", err)
+		return errors.WrapError(errors.ErrCodeInitializationFailed, "注册MCP工具失败", err)
 	}
 
 	util.Infow("MCP服务初始化完成", nil)

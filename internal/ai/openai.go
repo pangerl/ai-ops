@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"ai-ops/internal/common/errors"
 	cfg "ai-ops/internal/config"
 	"ai-ops/internal/tools"
 	"ai-ops/internal/util"
@@ -28,7 +29,7 @@ func NewOpenAIClient(config cfg.ModelConfig) (*OpenAIClient, error) {
 func NewOpenAIAdapter(config interface{}) (ModelAdapter, error) {
 	modelConfig, ok := config.(cfg.ModelConfig)
 	if !ok {
-		return nil, NewAIError(ErrCodeInvalidConfig, "invalid config type for OpenAI adapter", nil)
+		return nil, errors.NewError(errors.ErrCodeInvalidConfig, "invalid config type for OpenAI adapter")
 	}
 	return createOpenAIClient(modelConfig)
 }
@@ -36,7 +37,7 @@ func NewOpenAIAdapter(config interface{}) (ModelAdapter, error) {
 // createOpenAIClient 内部函数，创建 OpenAI 客户端实例
 func createOpenAIClient(modelCfg cfg.ModelConfig) (*OpenAIClient, error) {
 	if modelCfg.APIKey == "" {
-		return nil, NewAIError(ErrCodeAPIKeyMissing, "OpenAI API key is required", nil)
+		return nil, errors.NewError(errors.ErrCodeAPIKeyMissing, "OpenAI API key is required")
 	}
 
 	// 规范化 base URL，支持 style 路径风格
@@ -156,7 +157,7 @@ func createOpenAIClient(modelCfg cfg.ModelConfig) (*OpenAIClient, error) {
 
 	// 初始化适配器
 	if err := client.Initialize(context.Background(), modelCfg); err != nil {
-		return nil, NewAIError(ErrCodeClientCreationFailed, "failed to initialize OpenAI adapter", err)
+		return nil, errors.WrapError(errors.ErrCodeClientCreationFailed, "failed to initialize OpenAI adapter", err)
 	}
 	// 默认启用提供商特定错误映射，便于统一错误语义
 	client.SetErrorMapper(CreateErrorMapperForProvider("openai"))
@@ -208,11 +209,11 @@ func (c *OpenAIClient) GetModelInfo() ModelInfo {
 func (c *OpenAIClient) ValidateConfig(config interface{}) error {
 	modelConfig, ok := config.(cfg.ModelConfig)
 	if !ok {
-		return NewAIError(ErrCodeInvalidConfig, "config must be of type cfg.ModelConfig", nil)
+		return errors.NewError(errors.ErrCodeInvalidConfig, "config must be of type cfg.ModelConfig")
 	}
 
 	if modelConfig.APIKey == "" {
-		return NewAIError(ErrCodeAPIKeyMissing, "API key is required", nil)
+		return errors.NewError(errors.ErrCodeAPIKeyMissing, "API key is required")
 	}
 
 	if modelConfig.Model != "" {
@@ -258,7 +259,7 @@ func (c *OpenAIClient) HealthCheck(ctx context.Context) error {
 
 	_, err := c.SendMessage(healthCtx, testMessages, nil)
 	if err != nil {
-		return NewAIError(ErrCodeServiceUnavailable, "OpenAI service health check failed", err)
+		return errors.WrapError(errors.ErrCodeServiceUnavailable, "OpenAI service health check failed", err)
 	}
 
 	return nil
@@ -336,7 +337,7 @@ func (c *OpenAIClient) convertToolCallsToOpenAIToolCalls(toolCalls []ToolCall) [
 // parseResponse 解析 OpenAI 响应
 func (c *OpenAIClient) parseResponse(response *OpenAIResponse) (*Response, error) {
 	if len(response.Choices) == 0 {
-		return nil, NewAIError(ErrCodeInvalidResponse, "no choices in response", nil)
+		return nil, errors.NewError(errors.ErrCodeInvalidResponse, "no choices in response")
 	}
 
 	choice := response.Choices[0]
@@ -357,7 +358,7 @@ func (c *OpenAIClient) parseResponse(response *OpenAIResponse) (*Response, error
 			if toolCall.Type == "function" {
 				var args map[string]interface{}
 				if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-					return nil, NewAIError(ErrCodeInvalidResponse, "failed to parse tool call arguments", err)
+					return nil, errors.WrapError(errors.ErrCodeInvalidResponse, "failed to parse tool call arguments", err)
 				}
 
 				result.ToolCalls = append(result.ToolCalls, ToolCall{
@@ -445,11 +446,11 @@ type OpenAIUsage struct {
 func validateOpenAIConfig(config interface{}) error {
 	modelConfig, ok := config.(cfg.ModelConfig)
 	if !ok {
-		return NewAIError(ErrCodeInvalidConfig, "config must be of type cfg.ModelConfig", nil)
+		return errors.NewError(errors.ErrCodeInvalidConfig, "config must be of type cfg.ModelConfig")
 	}
 
 	if modelConfig.APIKey == "" {
-		return NewAIError(ErrCodeAPIKeyMissing, "API key is required for OpenAI", nil)
+		return errors.NewError(errors.ErrCodeAPIKeyMissing, "API key is required for OpenAI")
 	}
 
 	return nil

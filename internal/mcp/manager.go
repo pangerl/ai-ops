@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"ai-ops/internal/common/errors"
 	"ai-ops/internal/util"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -37,15 +38,17 @@ func (m *DefaultMCPManager) LoadSettings(configPath string) error {
 	// 读取配置文件
 	data, err := os.ReadFile(configPath)
 	if err != nil {
-		return util.WrapError(util.ErrCodeConfigLoadFailed,
-			fmt.Sprintf("读取MCP配置文件失败: %s", configPath), err)
+		return errors.WrapErrorWithDetails(errors.ErrCodeConfigLoadFailed,
+			"读取MCP配置文件失败", err,
+			fmt.Sprintf("配置文件路径: %s", configPath))
 	}
 
 	// 解析JSON配置
 	var settings MCPSettings
 	if err := json.Unmarshal(data, &settings); err != nil {
-		return util.WrapError(util.ErrCodeConfigParseFailed,
-			fmt.Sprintf("解析MCP配置文件失败: %s", configPath), err)
+		return errors.WrapErrorWithDetails(errors.ErrCodeConfigParseFailed,
+			"解析MCP配置文件失败", err,
+			fmt.Sprintf("配置文件路径: %s", configPath))
 	}
 
 	m.mutex.Lock()
@@ -65,7 +68,7 @@ func (m *DefaultMCPManager) InitializeClients(ctx context.Context) error {
 	defer m.mutex.Unlock()
 
 	if m.settings == nil {
-		return util.NewError(util.ErrCodeMCPNotConfigured, "MCP配置未加载")
+		return errors.NewError(errors.ErrCodeMCPNotConfigured, "MCP配置未加载")
 	}
 
 	util.Infow("初始化MCP客户端", map[string]any{
@@ -88,10 +91,10 @@ func (m *DefaultMCPManager) InitializeClients(ctx context.Context) error {
 		}
 
 		if config.Type != "stdio" && config.Type != "" {
-			util.LogErrorWithFields(nil, "不支持的MCP服务器类型", map[string]any{
-				"server_name": serverName,
-				"type":        config.Type,
-			})
+			err := errors.NewErrorWithDetails(errors.ErrCodeMCPConnectionFailed,
+				"不支持的MCP服务器类型",
+				fmt.Sprintf("服务器名称: %s, 类型: %s", serverName, config.Type))
+			errors.HandleError(err)
 			continue
 		}
 
@@ -115,9 +118,10 @@ func (m *DefaultMCPManager) InitializeClients(ctx context.Context) error {
 
 		session, err := client.Connect(connectCtx, transport)
 		if err != nil {
-			util.LogErrorWithFields(err, "MCP客户端连接失败", map[string]any{
-				"server_name": serverName,
-			})
+			wrappedErr := errors.WrapErrorWithDetails(errors.ErrCodeMCPConnectionFailed,
+				"MCP客户端连接失败", err,
+				fmt.Sprintf("服务器名称: %s", serverName))
+			errors.HandleError(wrappedErr)
 			continue
 		}
 
@@ -165,10 +169,11 @@ func (m *DefaultMCPManager) Shutdown() error {
 	var lastErr error
 	for serverName, session := range m.sessions {
 		if err := session.Close(); err != nil {
-			util.LogErrorWithFields(err, "关闭MCP客户端失败", map[string]any{
-				"server_name": serverName,
-			})
-			lastErr = err
+			wrappedErr := errors.WrapErrorWithDetails(errors.ErrCodeMCPConnectionFailed,
+				"关闭MCP客户端失败", err,
+				fmt.Sprintf("服务器名称: %s", serverName))
+			errors.HandleError(wrappedErr)
+			lastErr = wrappedErr
 		}
 	}
 

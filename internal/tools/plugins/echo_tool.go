@@ -4,13 +4,16 @@ import (
 	"context"
 	"fmt"
 
+	"ai-ops/internal/common/errors"
 	"ai-ops/internal/util"
 )
 
 // EchoTool 回显工具实现
 type EchoTool struct{}
 
+func (e *EchoTool) ID() string          { return "echo" }
 func (e *EchoTool) Name() string        { return "echo" }
+func (e *EchoTool) Type() string        { return "plugin" }
 func (e *EchoTool) Description() string { return "回显输入的消息" }
 func (e *EchoTool) Parameters() map[string]any {
 	return map[string]any{
@@ -28,7 +31,7 @@ func (e *EchoTool) Parameters() map[string]any {
 func (e *EchoTool) Execute(ctx context.Context, args map[string]any) (string, error) {
 	message, ok := args["message"].(string)
 	if !ok || message == "" {
-		return "", util.NewError(util.ErrCodeInvalidParam, "缺少或无效的 message 参数")
+		return "", errors.NewError(errors.ErrCodeInvalidParam, "缺少或无效的 message 参数")
 	}
 
 	util.Infow("执行回显工具", map[string]any{"message": message})

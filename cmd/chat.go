@@ -43,22 +43,10 @@ var chatCmd = &cobra.Command{
 			util.Infow("使用默认模型", map[string]any{"model": client.GetModelInfo().Name})
 		}
 
-		// 初始化工具管理器
-		toolManager := tools.NewToolManager()
-
-		// 从插件注册表中创建所有自动注册的工具
-		pluginTools := tools.CreatePluginTools()
-
-		// 将插件工具注册到管理器
-		for _, tool := range pluginTools {
-			if err := toolManager.RegisterTool(tool); err != nil {
-				// 仅记录警告，而不是中止程序
-				util.Warnw("注册工具失败，已跳过", map[string]any{
-					"tool_name": tool.Name(),
-					"error":     err.Error(),
-				})
-			}
-		}
+		// 使用全局的默认工具管理器
+		toolManager := tools.DefaultManager
+		// 初始化所有通过工厂注册的插件
+		toolManager.InitializePlugins()
 
 		// 初始化MCP服务
 		mcpService := mcp.NewMCPService(toolManager, "mcp_settings.json", 30*time.Second)

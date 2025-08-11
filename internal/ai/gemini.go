@@ -1,14 +1,14 @@
 package ai
 
 import (
+	"ai-ops/internal/common/errors"
+	cfg "ai-ops/internal/config"
+	"ai-ops/internal/tools"
+	"ai-ops/internal/util"
 	"context"
 	"fmt"
 	"strings"
 	"time"
-
-	cfg "ai-ops/internal/config"
-	"ai-ops/internal/tools"
-	"ai-ops/internal/util"
 )
 
 // GeminiClient Gemini AI 客户端实现，实现 ModelAdapter 接口
@@ -28,7 +28,7 @@ func NewGeminiClient(config cfg.ModelConfig) (*GeminiClient, error) {
 func NewGeminiAdapter(config interface{}) (ModelAdapter, error) {
 	modelConfig, ok := config.(cfg.ModelConfig)
 	if !ok {
-		return nil, NewAIError(ErrCodeInvalidConfig, "invalid config type for Gemini adapter", nil)
+		return nil, errors.NewError(errors.ErrCodeInvalidConfig, "invalid config type for Gemini adapter")
 	}
 	return createGeminiClient(modelConfig)
 }
@@ -36,7 +36,7 @@ func NewGeminiAdapter(config interface{}) (ModelAdapter, error) {
 // createGeminiClient 内部函数，创建 Gemini 客户端实例
 func createGeminiClient(modelCfg cfg.ModelConfig) (*GeminiClient, error) {
 	if modelCfg.APIKey == "" {
-		return nil, NewAIError(ErrCodeAPIKeyMissing, "Gemini API key is required", nil)
+		return nil, errors.NewError(errors.ErrCodeAPIKeyMissing, "Gemini API key is required")
 	}
 
 	baseURL := modelCfg.BaseURL
@@ -127,7 +127,7 @@ func createGeminiClient(modelCfg cfg.ModelConfig) (*GeminiClient, error) {
 
 	// 初始化适配器
 	if err := client.Initialize(context.Background(), modelCfg); err != nil {
-		return nil, NewAIError(ErrCodeClientCreationFailed, "failed to initialize Gemini adapter", err)
+		return nil, errors.WrapError(errors.ErrCodeClientCreationFailed, "failed to initialize Gemini adapter", err)
 	}
 
 	// 默认启用提供商特定错误映射
@@ -180,11 +180,11 @@ func (c *GeminiClient) GetModelInfo() ModelInfo {
 func (c *GeminiClient) ValidateConfig(config interface{}) error {
 	modelConfig, ok := config.(cfg.ModelConfig)
 	if !ok {
-		return NewAIError(ErrCodeInvalidConfig, "config must be of type cfg.ModelConfig", nil)
+		return errors.NewError(errors.ErrCodeInvalidConfig, "config must be of type cfg.ModelConfig")
 	}
 
 	if modelConfig.APIKey == "" {
-		return NewAIError(ErrCodeAPIKeyMissing, "API key is required", nil)
+		return errors.NewError(errors.ErrCodeAPIKeyMissing, "API key is required")
 	}
 
 	if modelConfig.Model != "" {
@@ -230,7 +230,7 @@ func (c *GeminiClient) HealthCheck(ctx context.Context) error {
 
 	_, err := c.SendMessage(healthCtx, testMessages, nil)
 	if err != nil {
-		return NewAIError(ErrCodeServiceUnavailable, "Gemini service health check failed", err)
+		return errors.WrapError(errors.ErrCodeServiceUnavailable, "Gemini service health check failed", err)
 	}
 
 	return nil
@@ -318,12 +318,13 @@ func (c *GeminiClient) convertToolsToGeminiTools(toolDefs []tools.ToolDefinition
 func (c *GeminiClient) parseResponse(response *GeminiResponse) (*Response, error) {
 	if len(response.Candidates) == 0 {
 		if response.PromptFeedback != nil && response.PromptFeedback.BlockReason != "" {
-			return nil, NewAIErrorWithDetails(ErrCodeInvalidResponse,
+			return nil, errors.WrapError(
+				errors.ErrCodeInvalidResponse,
 				"请求被阻止",
-				fmt.Sprintf("原因: %s, 安全评级: %v", response.PromptFeedback.BlockReason, response.PromptFeedback.SafetyRatings),
-				nil)
+				fmt.Errorf("原因: %s, 安全评级: %v", response.PromptFeedback.BlockReason, response.PromptFeedback.SafetyRatings),
+			)
 		}
-		return nil, NewAIError(ErrCodeInvalidResponse, "Gemini 响应中没有候选者", nil)
+		return nil, errors.NewError(errors.ErrCodeInvalidResponse, "Gemini 响应中没有候选者")
 	}
 
 	candidate := response.Candidates[0]
@@ -418,11 +419,11 @@ type SafetyRating struct {
 func validateGeminiConfig(config interface{}) error {
 	modelConfig, ok := config.(cfg.ModelConfig)
 	if !ok {
-		return NewAIError(ErrCodeInvalidConfig, "config must be of type cfg.ModelConfig", nil)
+		return errors.NewError(errors.ErrCodeInvalidConfig, "config must be of type cfg.ModelConfig")
 	}
 
 	if modelConfig.APIKey == "" {
-		return NewAIError(ErrCodeAPIKeyMissing, "API key is required for Gemini", nil)
+		return errors.NewError(errors.ErrCodeAPIKeyMissing, "API key is required for Gemini")
 	}
 
 	return nil

@@ -2,12 +2,16 @@ package tools
 
 import (
 	"context"
+
+	"ai-ops/internal/common/registry"
 )
+
+// PluginFactory 插件工厂函数类型
+type PluginFactory func() interface{}
 
 // Tool 工具接口定义
 type Tool interface {
-	// Name 获取工具名称
-	Name() string
+	registry.RegistryItem
 
 	// Description 获取工具描述
 	Description() string

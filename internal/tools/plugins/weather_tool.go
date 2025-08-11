@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	"ai-ops/internal/common/errors"
 	"ai-ops/internal/config"
 	"ai-ops/internal/util"
 )
@@ -18,7 +19,9 @@ import (
 // WeatherTool 天气工具实现
 type WeatherTool struct{}
 
+func (w *WeatherTool) ID() string          { return "weather" }
 func (w *WeatherTool) Name() string        { return "weather" }
+func (w *WeatherTool) Type() string        { return "plugin" }
 func (w *WeatherTool) Description() string { return "查询指定地点的实时天气信息" }
 func (w *WeatherTool) Parameters() map[string]any {
 	return map[string]any{
@@ -36,7 +39,7 @@ func (w *WeatherTool) Parameters() map[string]any {
 func (w *WeatherTool) Execute(ctx context.Context, args map[string]any) (string, error) {
 	location, ok := args["location"].(string)
 	if !ok || location == "" {
-		return "", util.NewError(util.ErrCodeInvalidParam, "缺少或无效的 location 参数")
+		return "", errors.NewError(errors.ErrCodeInvalidParam, "缺少或无效的 location 参数")
 	}
 
 	util.Infow("执行天气工具", map[string]any{"location": location})
@@ -55,7 +58,7 @@ func (w *WeatherTool) Execute(ctx context.Context, args map[string]any) (string,
 func (w *WeatherTool) callWeatherAPI(ctx context.Context, location string) (string, error) {
 	// 配置验证
 	if config.Config == nil {
-		return "", util.NewError(util.ErrCodeConfigNotFound, "系统配置未初始化")
+		return "", errors.NewError(errors.ErrCodeConfigNotFound, "系统配置未初始化")
 	}
 
 	apiHost := config.Config.Weather.ApiHost
@@ -91,7 +94,7 @@ func (w *WeatherTool) callWeatherAPI(ctx context.Context, location string) (stri
 	// 直接序列化返回的天气信息
 	jsonBytes, err := json.Marshal(weather)
 	if err != nil {
-		return "", util.WrapError(util.ErrCodeInternalErr, "结果序列化失败", err)
+		return "", errors.WrapError(errors.ErrCodeInternalErr, "结果序列化失败", err)
 	}
 
 	return string(jsonBytes), nil
@@ -112,28 +115,28 @@ func (w *WeatherTool) queryLocationID(ctx context.Context, apiHost, apiKey, city
 
 	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
 	if err != nil {
-		return "", util.WrapError(util.ErrCodeNetworkFailed, "创建城市查询请求失败", err)
+		return "", errors.WrapError(errors.ErrCodeNetworkFailed, "创建城市查询请求失败", err)
 	}
 
 	req.Header.Set("X-QW-Api-Key", apiKey)
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", util.WrapError(util.ErrCodeNetworkFailed, "城市查询请求失败", err)
+		return "", errors.WrapError(errors.ErrCodeNetworkFailed, "城市查询请求失败", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", util.WrapError(util.ErrCodeNetworkFailed, "读取城市查询响应失败", err)
+		return "", errors.WrapError(errors.ErrCodeNetworkFailed, "读取城市查询响应失败", err)
 	}
 
 	var lookup QWeatherCityLookupResp
 	if err := json.Unmarshal(body, &lookup); err != nil {
-		return "", util.WrapError(util.ErrCodeAIResponseInvalid, "城市查询响应解析失败", err)
+		return "", errors.WrapError(errors.ErrCodeAIResponseInvalid, "城市查询响应解析失败", err)
 	}
 
 	if lookup.Code != "200" || len(lookup.Location) == 0 {
-		return "", util.NewErrorWithDetail(util.ErrCodeNotFound, "城市查询失败",
+		return "", errors.NewErrorWithDetails(errors.ErrCodeNotFound, "城市查询失败",
 			fmt.Sprintf("code=%s, body=%s", lookup.Code, string(body)))
 	}
 
@@ -146,28 +149,28 @@ func (w *WeatherTool) queryQWeatherNow(ctx context.Context, apiHost, apiKey, loc
 
 	req, err := http.NewRequestWithContext(ctx, "GET", urlStr, nil)
 	if err != nil {
-		return nil, util.WrapError(util.ErrCodeNetworkFailed, "创建天气查询请求失败", err)
+		return nil, errors.WrapError(errors.ErrCodeNetworkFailed, "创建天气查询请求失败", err)
 	}
 
 	req.Header.Set("X-QW-Api-Key", apiKey)
 	resp, err := client.Do(req)
 	if err != nil {
-		return nil, util.WrapError(util.ErrCodeNetworkFailed, "天气查询请求失败", err)
+		return nil, errors.WrapError(errors.ErrCodeNetworkFailed, "天气查询请求失败", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return nil, util.WrapError(util.ErrCodeNetworkFailed, "读取天气查询响应失败", err)
+		return nil, errors.WrapError(errors.ErrCodeNetworkFailed, "读取天气查询响应失败", err)
 	}
 
 	var res QWeatherNowResp
 	if err := json.Unmarshal(body, &res); err != nil {
-		return nil, util.WrapError(util.ErrCodeAIResponseInvalid, "天气响应解析失败", err)
+		return nil, errors.WrapError(errors.ErrCodeAIResponseInvalid, "天气响应解析失败", err)
 	}
 
 	if res.Code != "200" {
-		return nil, util.NewErrorWithDetail(util.ErrCodeNotFound, "天气查询失败",
+		return nil, errors.NewErrorWithDetails(errors.ErrCodeNotFound, "天气查询失败",
 			fmt.Sprintf("code=%s, body=%s", res.Code, string(body)))
 	}
 

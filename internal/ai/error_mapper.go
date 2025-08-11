@@ -1,6 +1,7 @@
 package ai
 
 import (
+	"ai-ops/internal/common/errors"
 	"regexp"
 	"strings"
 )
@@ -66,10 +67,19 @@ func (m *DefaultErrorMapper) MapError(originalError error) error {
 		return nil
 	}
 
-	// 如果已经是AIError，检查是否需要重新映射
+	// 如果已经是AppError，检查是否需要重新映射
+	if appErr, ok := originalError.(*errors.AppError); ok {
+		// 可以根据需要对已有的AppError进行进一步映射
+		return appErr
+	}
+
+	// 如果是AIError，转换为AppError
 	if aiErr, ok := originalError.(*AIError); ok {
-		// 可以根据需要对已有的AIError进行进一步映射
-		return aiErr
+		// 将AIError转换为AppError
+		if aiErr.Cause != nil {
+			return errors.WrapErrorWithDetails(aiErr.Code, aiErr.Message, aiErr.Cause, aiErr.Details)
+		}
+		return errors.NewErrorWithDetails(aiErr.Code, aiErr.Message, aiErr.Details)
 	}
 
 	errorMessage := originalError.Error()
@@ -77,12 +87,12 @@ func (m *DefaultErrorMapper) MapError(originalError error) error {
 	// 按优先级排序规则，优先级高的优先匹配
 	for _, rule := range m.getSortedRules() {
 		if m.matchRule(errorMessage, rule) {
-			return NewAIErrorWithDetails(rule.ErrorCode, rule.ErrorMessage, errorMessage, originalError)
+			return errors.WrapErrorWithDetails(rule.ErrorCode, rule.ErrorMessage, originalError, errorMessage)
 		}
 	}
 
 	// 如果没有匹配的规则，返回通用错误
-	return NewAIError(ErrCodeInvalidResponse, "unknown error", originalError)
+	return errors.WrapError(errors.ErrCodeInvalidResponse, "unknown error", originalError)
 }
 
 // AddMapping 添加错误映射规则
@@ -174,7 +184,7 @@ func (m *DefaultErrorMapper) addPredefinedRules() {
 	predefinedRules := []ErrorMappingRule{
 		{
 			Pattern:       "timeout",
-			ErrorCode:     ErrCodeTimeout,
+			ErrorCode:     errors.ErrCodeTimeout,
 			ErrorMessage:  "Request timeout",
 			Priority:      100,
 			CaseSensitive: false,
@@ -182,7 +192,7 @@ func (m *DefaultErrorMapper) addPredefinedRules() {
 		},
 		{
 			Pattern:       "context deadline exceeded",
-			ErrorCode:     ErrCodeTimeout,
+			ErrorCode:     errors.ErrCodeTimeout,
 			ErrorMessage:  "Request timeout",
 			Priority:      95,
 			CaseSensitive: false,
@@ -190,7 +200,7 @@ func (m *DefaultErrorMapper) addPredefinedRules() {
 		},
 		{
 			Pattern:       "network",
-			ErrorCode:     ErrCodeNetworkFailed,
+			ErrorCode:     errors.ErrCodeNetworkFailed,
 			ErrorMessage:  "Network request failed",
 			Priority:      90,
 			CaseSensitive: false,
@@ -198,7 +208,7 @@ func (m *DefaultErrorMapper) addPredefinedRules() {
 		},
 		{
 			Pattern:       "connection",
-			ErrorCode:     ErrCodeNetworkFailed,
+			ErrorCode:     errors.ErrCodeNetworkFailed,
 			ErrorMessage:  "Connection failed",
 			Priority:      85,
 			CaseSensitive: false,
@@ -206,7 +216,7 @@ func (m *DefaultErrorMapper) addPredefinedRules() {
 		},
 		{
 			Pattern:       "rate limit",
-			ErrorCode:     ErrCodeRateLimited,
+			ErrorCode:     errors.ErrCodeRateLimited,
 			ErrorMessage:  "Rate limit exceeded",
 			Priority:      80,
 			CaseSensitive: false,
@@ -214,7 +224,7 @@ func (m *DefaultErrorMapper) addPredefinedRules() {
 		},
 		{
 			Pattern:       "too many requests",
-			ErrorCode:     ErrCodeRateLimited,
+			ErrorCode:     errors.ErrCodeRateLimited,
 			ErrorMessage:  "Rate limit exceeded",
 			Priority:      75,
 			CaseSensitive: false,
@@ -222,7 +232,7 @@ func (m *DefaultErrorMapper) addPredefinedRules() {
 		},
 		{
 			Pattern:       "unauthorized",
-			ErrorCode:     ErrCodeAPIKeyMissing,
+			ErrorCode:     errors.ErrCodeAPIKeyMissing,
 			ErrorMessage:  "Authentication failed",
 			Priority:      70,
 			CaseSensitive: false,
@@ -230,7 +240,7 @@ func (m *DefaultErrorMapper) addPredefinedRules() {
 		},
 		{
 			Pattern:       "forbidden",
-			ErrorCode:     ErrCodeAPIKeyMissing,
+			ErrorCode:     errors.ErrCodeForbidden,
 			ErrorMessage:  "Access forbidden",
 			Priority:      65,
 			CaseSensitive: false,
@@ -238,7 +248,7 @@ func (m *DefaultErrorMapper) addPredefinedRules() {
 		},
 		{
 			Pattern:       "invalid.*api.*key",
-			ErrorCode:     ErrCodeAPIKeyMissing,
+			ErrorCode:     errors.ErrCodeAPIKeyMissing,
 			ErrorMessage:  "Invalid API key",
 			Priority:      60,
 			CaseSensitive: false,
@@ -246,7 +256,7 @@ func (m *DefaultErrorMapper) addPredefinedRules() {
 		},
 		{
 			Pattern:       "bad request",
-			ErrorCode:     ErrCodeInvalidParameters,
+			ErrorCode:     errors.ErrCodeInvalidParameters,
 			ErrorMessage:  "Invalid request parameters",
 			Priority:      55,
 			CaseSensitive: false,
@@ -254,7 +264,7 @@ func (m *DefaultErrorMapper) addPredefinedRules() {
 		},
 		{
 			Pattern:       "invalid.*parameter",
-			ErrorCode:     ErrCodeInvalidParameters,
+			ErrorCode:     errors.ErrCodeInvalidParameters,
 			ErrorMessage:  "Invalid parameters",
 			Priority:      50,
 			CaseSensitive: false,
@@ -262,7 +272,7 @@ func (m *DefaultErrorMapper) addPredefinedRules() {
 		},
 		{
 			Pattern:       "model.*not.*found",
-			ErrorCode:     ErrCodeModelNotSupported,
+			ErrorCode:     errors.ErrCodeModelNotSupported,
 			ErrorMessage:  "Model not found or not supported",
 			Priority:      45,
 			CaseSensitive: false,
@@ -270,7 +280,7 @@ func (m *DefaultErrorMapper) addPredefinedRules() {
 		},
 		{
 			Pattern:       "server error",
-			ErrorCode:     ErrCodeNetworkFailed,
+			ErrorCode:     errors.ErrCodeNetworkFailed,
 			ErrorMessage:  "Server error",
 			Priority:      40,
 			CaseSensitive: false,
@@ -278,7 +288,7 @@ func (m *DefaultErrorMapper) addPredefinedRules() {
 		},
 		{
 			Pattern:       "internal.*error",
-			ErrorCode:     ErrCodeNetworkFailed,
+			ErrorCode:     errors.ErrCodeNetworkFailed,
 			ErrorMessage:  "Internal server error",
 			Priority:      35,
 			CaseSensitive: false,
@@ -327,7 +337,7 @@ func (m *ProviderSpecificErrorMapper) addOpenAIRules() {
 	rules := []ErrorMappingRule{
 		{
 			Pattern:       "insufficient_quota",
-			ErrorCode:     ErrCodeRateLimited,
+			ErrorCode:     errors.ErrCodeRateLimited,
 			ErrorMessage:  "OpenAI quota exceeded",
 			Priority:      200,
 			CaseSensitive: false,
@@ -335,7 +345,7 @@ func (m *ProviderSpecificErrorMapper) addOpenAIRules() {
 		},
 		{
 			Pattern:       "model_not_found",
-			ErrorCode:     ErrCodeModelNotSupported,
+			ErrorCode:     errors.ErrCodeModelNotSupported,
 			ErrorMessage:  "OpenAI model not found",
 			Priority:      195,
 			CaseSensitive: false,
@@ -343,7 +353,7 @@ func (m *ProviderSpecificErrorMapper) addOpenAIRules() {
 		},
 		{
 			Pattern:       "invalid_request_error",
-			ErrorCode:     ErrCodeInvalidParameters,
+			ErrorCode:     errors.ErrCodeInvalidParameters,
 			ErrorMessage:  "OpenAI invalid request",
 			Priority:      190,
 			CaseSensitive: false,
@@ -361,7 +371,7 @@ func (m *ProviderSpecificErrorMapper) addGeminiRules() {
 	rules := []ErrorMappingRule{
 		{
 			Pattern:       "SAFETY",
-			ErrorCode:     ErrCodeInvalidParameters,
+			ErrorCode:     errors.ErrCodeInvalidParameters,
 			ErrorMessage:  "Gemini safety violation",
 			Priority:      200,
 			CaseSensitive: false,
@@ -369,7 +379,7 @@ func (m *ProviderSpecificErrorMapper) addGeminiRules() {
 		},
 		{
 			Pattern:       "RECITATION",
-			ErrorCode:     ErrCodeInvalidParameters,
+			ErrorCode:     errors.ErrCodeInvalidParameters,
 			ErrorMessage:  "Gemini recitation detected",
 			Priority:      195,
 			CaseSensitive: false,
@@ -377,7 +387,7 @@ func (m *ProviderSpecificErrorMapper) addGeminiRules() {
 		},
 		{
 			Pattern:       "blocked",
-			ErrorCode:     ErrCodeInvalidParameters,
+			ErrorCode:     errors.ErrCodeInvalidParameters,
 			ErrorMessage:  "Gemini request blocked",
 			Priority:      190,
 			CaseSensitive: false,
@@ -395,7 +405,7 @@ func (m *ProviderSpecificErrorMapper) addClaudeRules() {
 	rules := []ErrorMappingRule{
 		{
 			Pattern:       "overloaded_error",
-			ErrorCode:     ErrCodeRateLimited,
+			ErrorCode:     errors.ErrCodeRateLimited,
 			ErrorMessage:  "Claude service overloaded",
 			Priority:      200,
 			CaseSensitive: false,
@@ -403,7 +413,7 @@ func (m *ProviderSpecificErrorMapper) addClaudeRules() {
 		},
 		{
 			Pattern:       "invalid_request_error",
-			ErrorCode:     ErrCodeInvalidParameters,
+			ErrorCode:     errors.ErrCodeInvalidParameters,
 			ErrorMessage:  "Claude invalid request",
 			Priority:      195,
 			CaseSensitive: false,

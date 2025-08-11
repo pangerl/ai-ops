@@ -2,8 +2,10 @@ package mcp
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	"ai-ops/internal/common/errors"
 	"ai-ops/internal/tools"
 	"ai-ops/internal/util"
 
@@ -37,9 +39,10 @@ func (r *MCPToolRegistry) RegisterMCPTools(ctx context.Context) error {
 		// 获取工具列表
 		result, err := session.ListTools(ctx, &mcp.ListToolsParams{})
 		if err != nil {
-			util.LogErrorWithFields(err, "获取MCP工具列表失败", map[string]any{
-				"server_name": serverName,
-			})
+			wrappedErr := errors.WrapErrorWithDetails(errors.ErrCodeMCPToolListFailed,
+				"获取MCP工具列表失败", err,
+				fmt.Sprintf("服务器名称: %s", serverName))
+			errors.HandleError(wrappedErr)
 			continue
 		}
 
@@ -48,11 +51,11 @@ func (r *MCPToolRegistry) RegisterMCPTools(ctx context.Context) error {
 			mcpTool := NewMCPTool(serverName, session, toolInfo, r.timeout)
 
 			if err := r.toolManager.RegisterTool(mcpTool); err != nil {
-				util.LogErrorWithFields(err, "注册MCP工具失败", map[string]any{
-					"server_name": serverName,
-					"tool_name":   toolInfo.Name,
-					"full_name":   mcpTool.Name(),
-				})
+				wrappedErr := errors.WrapErrorWithDetails(errors.ErrCodeMCPToolListFailed,
+					"注册MCP工具失败", err,
+					fmt.Sprintf("服务器名称: %s, 工具名称: %s, 完整名称: %s",
+						serverName, toolInfo.Name, mcpTool.Name()))
+				errors.HandleError(wrappedErr)
 				continue
 			}
 
@@ -79,7 +82,7 @@ func (r *MCPToolRegistry) RefreshMCPTools(ctx context.Context) error {
 
 	// 重新初始化客户端
 	if err := r.manager.InitializeClients(ctx); err != nil {
-		return util.WrapError(util.ErrCodeMCPConnectionFailed, "重新初始化MCP客户端失败", err)
+		return errors.WrapError(errors.ErrCodeMCPConnectionFailed, "重新初始化MCP客户端失败", err)
 	}
 
 	// 重新注册工具

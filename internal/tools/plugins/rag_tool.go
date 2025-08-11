@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"ai-ops/internal/common/errors"
 	"ai-ops/internal/config"
 	"ai-ops/internal/util"
 )
@@ -41,11 +42,11 @@ func (t *RAGTool) Parameters() map[string]any {
 func (t *RAGTool) Execute(ctx context.Context, args map[string]any) (string, error) {
 	query, ok := args["query"].(string)
 	if !ok || query == "" {
-		return "", util.NewError(util.ErrCodeInvalidParam, "缺少或无效的 query 参数")
+		return "", errors.NewError(errors.ErrCodeInvalidParam, "缺少或无效的 query 参数")
 	}
 
 	if config.Config == nil {
-		return "", util.NewError(util.ErrCodeConfigNotFound, "系统配置未初始化")
+		return "", errors.NewError(errors.ErrCodeConfigNotFound, "系统配置未初始化")
 	}
 
 	retrievalK := config.Config.RAG.RetrievalK
@@ -70,7 +71,7 @@ func (t *RAGTool) Execute(ctx context.Context, args map[string]any) (string, err
 
 func (t *RAGTool) callRAGAPI(ctx context.Context, query string, retrievalK, topK int, useReranker bool) (string, error) {
 	if config.Config == nil {
-		return "", util.NewError(util.ErrCodeConfigNotFound, "系统配置未初始化")
+		return "", errors.NewError(errors.ErrCodeConfigNotFound, "系统配置未初始化")
 	}
 
 	apiHost := config.Config.RAG.ApiHost
@@ -85,46 +86,46 @@ func (t *RAGTool) callRAGAPI(ctx context.Context, query string, retrievalK, topK
 		"use_reranker": useReranker,
 	})
 	if err != nil {
-		return "", util.WrapError(util.ErrCodeInternalErr, "创建请求体失败", err)
+		return "", errors.WrapError(errors.ErrCodeInternalErr, "创建请求体失败", err)
 	}
 
 	url := fmt.Sprintf("%s/api/v1/retrieve", strings.TrimRight(apiHost, "/"))
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(requestBody))
 	if err != nil {
-		return "", util.WrapError(util.ErrCodeNetworkFailed, "创建RAG请求失败", err)
+		return "", errors.WrapError(errors.ErrCodeNetworkFailed, "创建RAG请求失败", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", util.WrapError(util.ErrCodeNetworkFailed, "RAG请求失败", err)
+		return "", errors.WrapError(errors.ErrCodeNetworkFailed, "RAG请求失败", err)
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", util.WrapError(util.ErrCodeNetworkFailed, "读取RAG响应失败", err)
+		return "", errors.WrapError(errors.ErrCodeNetworkFailed, "读取RAG响应失败", err)
 	}
 
 	if resp.StatusCode != http.StatusOK {
-		return "", util.NewErrorWithDetail(util.ErrCodeAPIRequestFailed, "RAG API返回错误",
+		return "", errors.NewErrorWithDetails(errors.ErrCodeAPIRequestFailed, "RAG API返回错误",
 			fmt.Sprintf("status_code=%d, body=%s", resp.StatusCode, string(body)))
 	}
 
 	var responseData map[string]any
 	if err := json.Unmarshal(body, &responseData); err != nil {
-		return "", util.WrapError(util.ErrCodeInternalErr, "解析RAG响应JSON失败", err)
+		return "", errors.WrapError(errors.ErrCodeInternalErr, "解析RAG响应JSON失败", err)
 	}
 
 	results, ok := responseData["results"]
 	if !ok {
-		return "", util.NewErrorWithDetail(util.ErrCodeAPIRequestFailed, "RAG API响应缺少 'results' 字段", string(body))
+		return "", errors.NewErrorWithDetails(errors.ErrCodeAPIRequestFailed, "RAG API响应缺少 'results' 字段", string(body))
 	}
 
 	resultsJSON, err := json.Marshal(results)
 	if err != nil {
-		return "", util.WrapError(util.ErrCodeInternalErr, "序列化RAG results失败", err)
+		return "", errors.WrapError(errors.ErrCodeInternalErr, "序列化RAG results失败", err)
 	}
 
 	return string(resultsJSON), nil
