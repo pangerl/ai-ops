@@ -5,32 +5,32 @@ import (
 	"fmt"
 	"time"
 
-	"ai-ops/internal/common/errors"
+	pkg "ai-ops/internal/pkg"
+	"ai-ops/internal/pkg/errors"
 	"ai-ops/internal/tools"
-	"ai-ops/internal/util"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
-// MCPToolRegistry MCP工具注册器
-type MCPToolRegistry struct {
+// MCPToolRegistrar MCP工具注册协调器
+type MCPToolRegistrar struct {
 	manager     MCPManager
 	toolManager tools.ToolManager
 	timeout     time.Duration
 }
 
-// NewMCPToolRegistry 创建新的MCP工具注册器
-func NewMCPToolRegistry(manager MCPManager, toolManager tools.ToolManager, timeout time.Duration) *MCPToolRegistry {
-	return &MCPToolRegistry{
+// NewMCPToolRegistrar 创建新的MCP工具注册协调器
+func NewMCPToolRegistrar(manager MCPManager, toolManager tools.ToolManager, timeout time.Duration) *MCPToolRegistrar {
+	return &MCPToolRegistrar{
 		manager:     manager,
 		toolManager: toolManager,
 		timeout:     timeout,
 	}
 }
 
-// RegisterMCPTools 注册所有MCP工具
-func (r *MCPToolRegistry) RegisterMCPTools(ctx context.Context) error {
-	util.Infow("开始注册MCP工具", nil)
+// RegisterTools 注册所有MCP工具
+func (r *MCPToolRegistrar) RegisterTools(ctx context.Context) error {
+	pkg.Infow("开始注册MCP工具", nil)
 
 	sessions := r.manager.GetClients()
 	totalTools := 0
@@ -60,7 +60,7 @@ func (r *MCPToolRegistry) RegisterMCPTools(ctx context.Context) error {
 			}
 
 			totalTools++
-			util.Infow("MCP工具注册成功", map[string]any{
+			pkg.Infow("MCP工具注册成功", map[string]any{
 				"server_name": serverName,
 				"tool_name":   toolInfo.Name,
 				"full_name":   mcpTool.Name(),
@@ -68,7 +68,7 @@ func (r *MCPToolRegistry) RegisterMCPTools(ctx context.Context) error {
 		}
 	}
 
-	util.Infow("MCP工具注册完成", map[string]any{
+	pkg.Infow("MCP工具注册完成", map[string]any{
 		"total_tools":  totalTools,
 		"server_count": len(sessions),
 	})
@@ -76,9 +76,9 @@ func (r *MCPToolRegistry) RegisterMCPTools(ctx context.Context) error {
 	return nil
 }
 
-// RefreshMCPTools 刷新MCP工具注册
-func (r *MCPToolRegistry) RefreshMCPTools(ctx context.Context) error {
-	util.Infow("刷新MCP工具注册", nil)
+// RefreshTools 刷新MCP工具注册
+func (r *MCPToolRegistrar) RefreshTools(ctx context.Context) error {
+	pkg.Infow("刷新MCP工具注册", nil)
 
 	// 重新初始化客户端
 	if err := r.manager.InitializeClients(ctx); err != nil {
@@ -86,5 +86,5 @@ func (r *MCPToolRegistry) RefreshMCPTools(ctx context.Context) error {
 	}
 
 	// 重新注册工具
-	return r.RegisterMCPTools(ctx)
+	return r.RegisterTools(ctx)
 }

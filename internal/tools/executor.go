@@ -6,8 +6,8 @@ import (
 	"slices"
 	"time"
 
-	"ai-ops/internal/common/errors"
-	"ai-ops/internal/util"
+	"ai-ops/internal/pkg"
+	"ai-ops/internal/pkg/errors"
 )
 
 // ToolCallExecutor 工具调用执行器（增强版）
@@ -16,15 +16,6 @@ type ToolCallExecutor struct {
 	manager    ToolManager
 	maxRetries int
 	retryDelay time.Duration // 重试延迟
-}
-
-// NewToolCallExecutor 创建工具调用执行器
-func NewToolCallExecutor(manager ToolManager) *ToolCallExecutor {
-	return &ToolCallExecutor{
-		manager:    manager,
-		maxRetries: 3,               // 默认最多重试3次
-		retryDelay: time.Second * 1, // 默认重试延迟1秒
-	}
 }
 
 // SetRetryConfig 设置重试配置
@@ -42,7 +33,7 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 		// 创建带超时的上下文
 		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
 
-		util.Infow("开始工具执行（尝试）", map[string]any{
+		pkg.Infow("开始工具执行（尝试）", map[string]any{
 			"tool_name":  call.Name,
 			"call_id":    call.ID,
 			"attempt":    i + 1,
@@ -58,13 +49,13 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 			if timeoutCtx.Err() == context.DeadlineExceeded {
 				// 先释放本轮上下文资源
 				cancel()
-				util.LogErrorWithFields(err, "工具执行超时", map[string]any{
+				pkg.LogErrorWithFields(err, "工具执行超时", map[string]any{
 					"tool_name":  call.Name,
 					"call_id":    call.ID,
 					"timeout_ms": timeoutMs,
 				})
 				// 超时是最终错误，不应重试
-				return "", util.NewToolErrorWithDetails("工具执行超时",
+				return "", errors.NewToolErrorWithDetails("工具执行超时",
 					fmt.Sprintf("工具 %s 执行超过 %d 毫秒", call.Name, timeoutMs))
 			}
 
@@ -72,7 +63,7 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 			if i < e.maxRetries && shouldRetry(err) {
 				// 释放本轮上下文资源再重试
 				cancel()
-				util.Warnw("工具执行失败，准备重试", map[string]any{
+				pkg.Warnw("工具执行失败，准备重试", map[string]any{
 					"tool_name":   call.Name,
 					"call_id":     call.ID,
 					"error":       err.Error(),
@@ -89,7 +80,7 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 
 		// 执行成功，释放本轮上下文资源并返回结果
 		cancel()
-		util.Infow("工具执行成功", map[string]any{
+		pkg.Infow("工具执行成功", map[string]any{
 			"tool_name":     call.Name,
 			"call_id":       call.ID,
 			"result_length": len(result),

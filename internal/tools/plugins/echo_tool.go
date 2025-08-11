@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"ai-ops/internal/common/errors"
-	"ai-ops/internal/util"
+	pkg "ai-ops/internal/pkg"
+	"ai-ops/internal/pkg/errors"
 )
 
 // EchoTool 回显工具实现
@@ -34,7 +34,7 @@ func (e *EchoTool) Execute(ctx context.Context, args map[string]any) (string, er
 		return "", errors.NewError(errors.ErrCodeInvalidParam, "缺少或无效的 message 参数")
 	}
 
-	util.Infow("执行回显工具", map[string]any{"message": message})
+	pkg.Infow("执行回显工具", map[string]any{"message": message})
 	return fmt.Sprintf("蓝胖说: %s", message), nil
 }
 

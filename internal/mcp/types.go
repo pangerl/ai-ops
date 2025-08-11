@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"ai-ops/internal/common/errors"
+	"ai-ops/internal/pkg/errors"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

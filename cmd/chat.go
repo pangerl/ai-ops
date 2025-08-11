@@ -7,12 +7,12 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"ai-ops/internal/ai"
 	"ai-ops/internal/chat"
+	ai "ai-ops/internal/llm"
 	"ai-ops/internal/mcp"
+	util "ai-ops/internal/pkg"
 	"ai-ops/internal/tools"
-	_ "ai-ops/internal/tools/plugins" // 匿名导入以触发插件注册
-	"ai-ops/internal/util"
+	"ai-ops/internal/tools/plugins"
 )
 
 // chatCmd represents the chat command
@@ -44,8 +44,15 @@ var chatCmd = &cobra.Command{
 		}
 
 		// 使用全局的默认工具管理器
-		toolManager := tools.DefaultManager
-		// 初始化所有通过工厂注册的插件
+		// 初始化工具管理器
+		toolManager, err := tools.NewToolManager()
+		if err != nil {
+			util.Errorw("工具管理器初始化失败", map[string]any{"error": err})
+			return
+		}
+
+		// 注册并初始化插件
+		plugins.RegisterPluginFactories(toolManager)
 		toolManager.InitializePlugins()
 
 		// 初始化MCP服务

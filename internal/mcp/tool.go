@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"ai-ops/internal/common/errors"
-	"ai-ops/internal/util"
+	pkg "ai-ops/internal/pkg"
+	"ai-ops/internal/pkg/errors"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
@@ -110,7 +110,7 @@ func (t *MCPTool) Execute(ctx context.Context, args map[string]any) (string, err
 		defer cancel()
 	}
 
-	util.Infow("执行MCP工具", map[string]any{
+	pkg.Infow("执行MCP工具", map[string]any{
 		"server_name": t.serverName,
 		"tool_name":   t.toolInfo.Name,
 		"full_name":   t.Name(),
@@ -148,7 +148,7 @@ func (t *MCPTool) Execute(ctx context.Context, args map[string]any) (string, err
 		}
 	}
 
-	util.Infow("MCP工具执行成功", map[string]any{
+	pkg.Infow("MCP工具执行成功", map[string]any{
 		"server_name":   t.serverName,
 		"tool_name":     t.toolInfo.Name,
 		"full_name":     t.Name(),

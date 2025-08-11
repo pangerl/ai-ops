@@ -8,13 +8,6 @@
       "args": [
         "mcp-server-fetch"
       ]
-    },
-    "hotnews": {
-      "command": "npx",
-      "args": [
-        "-y",
-        "@wopal/mcp-server-hotnews"
-      ]
     }
   }
 }

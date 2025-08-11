@@ -1,4 +1,4 @@
-package ai
+package llm
 
 import (
 	"context"
@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"ai-ops/internal/common/errors"
 	cfg "ai-ops/internal/config"
+	pkg "ai-ops/internal/pkg"
+	"ai-ops/internal/pkg/errors"
 	"ai-ops/internal/tools"
-	"ai-ops/internal/util"
 )
 
 // OpenAIClient OpenAI AI 客户端实现，实现 ModelAdapter 接口
@@ -162,7 +162,7 @@ func createOpenAIClient(modelCfg cfg.ModelConfig) (*OpenAIClient, error) {
 	// 默认启用提供商特定错误映射，便于统一错误语义
 	client.SetErrorMapper(CreateErrorMapperForProvider("openai"))
 
-	util.Debugw("OpenAI 适配器创建成功", map[string]interface{}{
+	pkg.Debugw("OpenAI 适配器创建成功", map[string]interface{}{
 		"model":      modelName,
 		"max_tokens": maxTokens,
 		"base_url":   effectiveBaseURL,
@@ -232,7 +232,7 @@ func (c *OpenAIClient) ValidateConfig(config interface{}) error {
 		}
 
 		if !modelSupported {
-			util.Debugw("使用非标准 OpenAI 模型", map[string]interface{}{
+			pkg.Debugw("使用非标准 OpenAI 模型", map[string]interface{}{
 				"model": modelConfig.Model,
 			})
 		}
@@ -512,19 +512,19 @@ func init() {
 
 	// 注册适配器工厂函数
 	if err := RegisterAdapterFactory("openai", NewOpenAIAdapter, adapterInfo); err != nil {
-		util.Errorw("注册 OpenAI 适配器失败", map[string]interface{}{
+		pkg.Errorw("注册 OpenAI 适配器失败", map[string]interface{}{
 			"error": err.Error(),
 		})
 	}
 
 	// 注册配置验证器
 	if err := RegisterConfigValidator("openai", validateOpenAIConfig); err != nil {
-		util.Errorw("注册 OpenAI 配置验证器失败", map[string]interface{}{
+		pkg.Errorw("注册 OpenAI 配置验证器失败", map[string]interface{}{
 			"error": err.Error(),
 		})
 	}
 
-	util.Debugw("OpenAI 适配器注册成功", map[string]interface{}{
+	pkg.Debugw("OpenAI 适配器注册成功", map[string]interface{}{
 		"type":             "openai",
 		"supported_models": adapterInfo.SupportedModels,
 		"capabilities":     len(adapterInfo.Capabilities),

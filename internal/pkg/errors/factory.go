@@ -1,5 +1,7 @@
 package errors
 
+import "fmt"
+
 // NewError 创建新的错误
 func NewError(code, message string) *AppError {
 	err := &AppError{
@@ -111,6 +113,19 @@ func NewToolErrorWithDetails(message, details string) *AppError {
 
 func WrapToolError(message string, cause error) *AppError {
 	return WrapError(ErrCodeToolExecutionFailed, message, cause)
+}
+
+// NewToolNotFoundError 创建工具未找到错误
+func NewToolNotFoundError(toolName string) *AppError {
+	return NewErrorWithDetails(ErrCodeToolNotFound, "工具未找到",
+		fmt.Sprintf("工具名称: %s", toolName))
+}
+
+// NewToolExecutionError 创建工具执行错误
+func NewToolExecutionError(toolName string, cause error) *AppError {
+	return WrapErrorWithDetails(ErrCodeToolExecutionFailed,
+		fmt.Sprintf("工具 %s 执行失败", toolName), cause,
+		fmt.Sprintf("工具名称: %s", toolName))
 }
 
 // MCP错误

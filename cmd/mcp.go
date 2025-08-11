@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"ai-ops/internal/mcp"
+	"ai-ops/internal/pkg/errors"
 	"ai-ops/internal/tools"
-	"ai-ops/internal/util"
 )
 
 // mcpCmd represents the mcp command
@@ -69,7 +69,10 @@ func init() {
 
 // withMCPService 是一个辅助函数，用于封装MCP服务的初始化和关闭逻辑
 func withMCPService(run func(ctx context.Context, mcpService *mcp.MCPService, toolManager tools.ToolManager) error) error {
-	toolManager := tools.NewToolManager()
+	toolManager, err := tools.NewToolManager()
+	if err != nil {
+		return err
+	}
 	mcpService := mcp.NewMCPService(toolManager, "mcp_settings.json", 30*time.Second)
 	defer mcpService.Shutdown()
 
@@ -219,11 +222,11 @@ func testMCPConnection() {
 
 	if err != nil {
 		fmt.Printf("❌ 连接测试失败: %v\n", err)
-		if util.IsErrorCode(err, util.ErrCodeConfigLoadFailed) {
+		if errors.IsErrorCode(err, errors.ErrCodeConfigLoadFailed) {
 			fmt.Println("\n💡 建议:")
 			fmt.Println("  1. 检查 mcp_settings.json 文件是否存在")
 			fmt.Println("  2. 验证JSON格式是否正确")
-		} else if util.IsErrorCode(err, util.ErrCodeMCPConnectionFailed) {
+		} else if errors.IsErrorCode(err, errors.ErrCodeMCPConnectionFailed) {
 			fmt.Println("\n💡 建议:")
 			fmt.Println("  1. 检查MCP服务器命令是否正确")
 			fmt.Println("  2. 确保相关依赖已安装 (如: uvx, uv)")
@@ -292,7 +295,7 @@ func callMCPTool(args []string) {
 
 	if err != nil {
 		fmt.Printf("❌ 工具调用失败: %v\n", err)
-		if util.IsErrorCode(err, util.ErrCodeToolNotFound) {
+		if errors.IsErrorCode(err, errors.ErrCodeToolNotFound) {
 			fmt.Println("\n💡 建议:")
 			fmt.Println("  1. 使用 'ai-ops mcp list' 查看可用工具")
 			fmt.Println("  2. 检查工具名称拼写是否正确")

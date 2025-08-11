@@ -1,9 +1,9 @@
-package ai
+package llm
 
 import (
-	"ai-ops/internal/common/errors"
+	pkg "ai-ops/internal/pkg"
+	"ai-ops/internal/pkg/errors"
 	"ai-ops/internal/tools"
-	"ai-ops/internal/util"
 	"context"
 	"sync"
 	"time"
@@ -71,7 +71,7 @@ func (b *BaseAdapter) Initialize(ctx context.Context, config interface{}) error 
 
 	b.initialized = true
 
-	util.Debugw("适配器初始化成功", map[string]interface{}{
+	pkg.Debugw("适配器初始化成功", map[string]interface{}{
 		"adapter_name": b.info.Name,
 		"adapter_type": b.info.Type,
 	})

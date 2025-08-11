@@ -1,7 +1,7 @@
-package ai
+package llm
 
 import (
-	"ai-ops/internal/common/errors"
+	"ai-ops/internal/pkg/errors"
 	"regexp"
 	"strings"
 )
@@ -71,15 +71,6 @@ func (m *DefaultErrorMapper) MapError(originalError error) error {
 	if appErr, ok := originalError.(*errors.AppError); ok {
 		// 可以根据需要对已有的AppError进行进一步映射
 		return appErr
-	}
-
-	// 如果是AIError，转换为AppError
-	if aiErr, ok := originalError.(*AIError); ok {
-		// 将AIError转换为AppError
-		if aiErr.Cause != nil {
-			return errors.WrapErrorWithDetails(aiErr.Code, aiErr.Message, aiErr.Cause, aiErr.Details)
-		}
-		return errors.NewErrorWithDetails(aiErr.Code, aiErr.Message, aiErr.Details)
 	}
 
 	errorMessage := originalError.Error()

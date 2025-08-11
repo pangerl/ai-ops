@@ -6,15 +6,15 @@ import (
 	"path/filepath"
 	"time"
 
-	"ai-ops/internal/common/errors"
+	util "ai-ops/internal/pkg"
+	"ai-ops/internal/pkg/errors"
 	"ai-ops/internal/tools"
-	"ai-ops/internal/util"
 )
 
 // MCPService MCP集成服务
 type MCPService struct {
 	manager    MCPManager
-	registry   *MCPToolRegistry
+	registrar  *MCPToolRegistrar
 	configPath string
 	timeout    time.Duration
 }
@@ -22,11 +22,11 @@ type MCPService struct {
 // NewMCPService 创建新的MCP服务
 func NewMCPService(toolManager tools.ToolManager, configPath string, timeout time.Duration) *MCPService {
 	manager := NewMCPManager()
-	registry := NewMCPToolRegistry(manager, toolManager, timeout)
+	registrar := NewMCPToolRegistrar(manager, toolManager, timeout)
 
 	return &MCPService{
 		manager:    manager,
-		registry:   registry,
+		registrar:  registrar,
 		configPath: configPath,
 		timeout:    timeout,
 	}
@@ -60,7 +60,7 @@ func (s *MCPService) Initialize(ctx context.Context) error {
 	}
 
 	// 注册工具
-	if err := s.registry.RegisterMCPTools(ctx); err != nil {
+	if err := s.registrar.RegisterTools(ctx); err != nil {
 		return errors.WrapError(errors.ErrCodeInitializationFailed, "注册MCP工具失败", err)
 	}
 
@@ -77,7 +77,7 @@ func (s *MCPService) Shutdown() error {
 // RefreshTools 刷新MCP工具
 func (s *MCPService) RefreshTools(ctx context.Context) error {
 	util.Infow("刷新MCP工具", nil)
-	return s.registry.RefreshMCPTools(ctx)
+	return s.registrar.RefreshTools(ctx)
 }
 
 // GetManager 获取MCP管理器

@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"ai-ops/internal/ai"
+	ai "ai-ops/internal/llm"
+	util "ai-ops/internal/pkg"
 	"ai-ops/internal/tools"
-	"ai-ops/internal/util"
 )
 
 // Session 管理一个独立的对话会话

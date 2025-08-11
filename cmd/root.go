@@ -6,9 +6,11 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"ai-ops/internal/ai"
 	"ai-ops/internal/config"
-	"ai-ops/internal/util"
+	ai "ai-ops/internal/llm"
+	"ai-ops/internal/pkg"
+	"ai-ops/internal/pkg/errors"
+	"ai-ops/internal/tools"
 )
 
 var (
@@ -59,7 +61,7 @@ func initializeApp() error {
 
 	// 2. 加载配置文件
 	if err := config.LoadConfig(configPath); err != nil {
-		return util.WrapError(util.ErrCodeConfigInvalid, "配置加载失败", err)
+		return errors.WrapError(errors.ErrCodeConfigInvalid, "配置加载失败", err)
 	}
 
 	// 3. 根据verbose标志调整日志级别
@@ -70,23 +72,35 @@ func initializeApp() error {
 
 	// 4. 初始化日志系统
 	logConfig := config.Config.Logging
-	if err := util.InitLogger(logLevel, logConfig.Format, logConfig.Output, logConfig.File); err != nil {
-		return util.WrapError(util.ErrCodeConfigInvalid, "日志系统初始化失败", err)
+	if err := pkg.InitLogger(logLevel, logConfig.Format, logConfig.Output, logConfig.File); err != nil {
+		return errors.WrapError(errors.ErrCodeConfigInvalid, "日志系统初始化失败", err)
 	}
 
-	util.Info("应用配置加载完成")
-	util.Debugw("配置详情", map[string]any{
+	pkg.Info("应用配置加载完成")
+	pkg.Debugw("配置详情", map[string]any{
 		"default_model": config.Config.AI.DefaultModel,
 		"log_level":     logLevel,
 		"config_path":   configPath,
 	})
 
-	// 5. 初始化 AI 客户端管理器
+	// 5. 初始化所有注册表
+	initializeRegistries()
+
+	// 6. 初始化 AI 客户端管理器
 	if err := initializeAIClients(); err != nil {
-		return util.WrapError(util.ErrCodeInitializationFailed, "AI 客户端初始化失败", err)
+		return errors.WrapError(errors.ErrCodeInitializationFailed, "AI 客户端初始化失败", err)
 	}
 
 	return nil
+}
+
+// initializeRegistries 初始化所有注册表
+func initializeRegistries() {
+	// 初始化LLM注册表
+	ai.InitRegistry()
+	// 初始化工具注册表
+	tools.InitRegistry()
+	pkg.Info("所有注册表初始化完成")
 }
 
 // initializeAIClients 初始化 AI 客户端
@@ -97,27 +111,27 @@ func initializeAIClients() error {
 	for name, modelConfig := range config.Config.AI.Models {
 		// 直接使用统一的 config.ModelConfig 类型
 		if err := aiManager.CreateClientFromConfig(name, modelConfig); err != nil {
-			util.Warnw(fmt.Sprintf("创建 AI 客户端 '%s' 失败", name), map[string]interface{}{"error": err})
+			pkg.Warnw(fmt.Sprintf("创建 AI 客户端 '%s' 失败", name), map[string]interface{}{"error": err})
 			continue // 即使某个客户端失败，也继续尝试其他客户端
 		}
-		util.Debugw("AI 客户端已创建", map[string]interface{}{"name": name, "type": modelConfig.Type, "model": modelConfig.Model})
+		pkg.Debugw("AI 客户端已创建", map[string]interface{}{"name": name, "type": modelConfig.Type, "model": modelConfig.Model})
 	}
 
 	// 检查是否有任何客户端被成功创建
 	if len(aiManager.ListClients()) == 0 {
-		return util.NewError(util.ErrCodeInitializationFailed, "没有可用的 AI 客户端，请检查配置")
+		return errors.NewError(errors.ErrCodeInitializationFailed, "没有可用的 AI 客户端，请检查配置")
 	}
 
 	// 设置默认客户端
 	defaultModel := config.Config.AI.DefaultModel
 	if defaultModel != "" {
 		if err := aiManager.SetDefaultClient(defaultModel); err != nil {
-			util.Warnw(fmt.Sprintf("设置默认模型 '%s' 失败，将使用第一个可用模型", defaultModel), map[string]interface{}{"error": err})
+			pkg.Warnw(fmt.Sprintf("设置默认模型 '%s' 失败，将使用第一个可用模型", defaultModel), map[string]interface{}{"error": err})
 		}
 	}
 
-	util.Info("AI 客户端初始化完成")
-	util.Debugw("AI 客户端状态", map[string]interface{}{
+	pkg.Info("AI 客户端初始化完成")
+	pkg.Debugw("AI 客户端状态", map[string]interface{}{
 		"registered_clients": aiManager.ListClients(),
 		"default_client":     aiManager.GetDefaultClient().GetModelInfo().Name,
 	})
@@ -127,7 +141,7 @@ func initializeAIClients() error {
 
 // showStatus 显示应用状态
 func showStatus() {
-	util.Info("AI-Ops 应用启动成功")
+	pkg.Info("AI-Ops 应用启动成功")
 	fmt.Println("AI-Ops 框架初始化完成")
 	fmt.Println("配置文件加载成功")
 

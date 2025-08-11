@@ -1,8 +1,8 @@
-package ai
+package llm
 
 import (
-	"ai-ops/internal/common/errors"
 	cfg "ai-ops/internal/config"
+	"ai-ops/internal/pkg/errors"
 	"ai-ops/internal/tools"
 	"context"
 	"fmt"
@@ -63,7 +63,6 @@ type ClientManager struct {
 	defaultClient string
 	configs       map[string]cfg.ModelConfig
 	retryConfig   RetryConfig
-	registry      *AdapterRegistry // 适配器注册表
 }
 
 // RetryConfig 重试配置
@@ -83,7 +82,6 @@ func NewClientManager() *ClientManager {
 			RetryDelay: time.Second,
 			Enabled:    true,
 		},
-		registry: GetDefaultRegistry(), // 使用全局适配器注册表
 	}
 }
 
@@ -151,33 +149,35 @@ func (cm *ClientManager) GetRetryConfig() RetryConfig {
 
 // CreateClientFromConfig 根据配置创建客户端
 func (cm *ClientManager) CreateClientFromConfig(name string, config cfg.ModelConfig) error {
-	// 优先使用适配器注册表创建客户端
-	if cm.registry != nil && cm.registry.HasAdapterType(config.Type) {
-		adapter, err := cm.registry.CreateAdapter(name, config.Type, config)
-		if err != nil {
-			return NewClientCreationFailedError(fmt.Sprintf("failed to create adapter for '%s'", name), err)
-		}
-
+	// 优先使用新的注册表函数创建客户端
+	adapter, err := CreateAdapter(name, config.Type, config)
+	if err == nil {
 		// 将适配器作为 AIClient 注册
 		cm.RegisterClient(name, adapter, config)
 		return nil
 	}
 
+	// 如果创建适配器失败，检查是否是因为类型不支持
+	if appErr, ok := err.(*errors.AppError); !ok || appErr.Code != errors.ErrCodeModelNotSupported {
+		// 如果是其他错误，则直接返回
+		return errors.WrapError(errors.ErrCodeClientCreationFailed, fmt.Sprintf("failed to create adapter for '%s'", name), err)
+	}
+
 	// 回退到传统方式（保持向后兼容性）
 	var client AIClient
-	var err error
+	var creationErr error
 
 	switch config.Type {
 	case "gemini":
-		client, err = NewGeminiClient(config)
+		client, creationErr = NewGeminiClient(config)
 	case "openai":
-		client, err = NewOpenAIClient(config)
+		client, creationErr = NewOpenAIClient(config)
 	default:
 		return errors.NewError(errors.ErrCodeModelNotSupported, fmt.Sprintf("unsupported model type: %s", config.Type))
 	}
 
-	if err != nil {
-		return errors.WrapError(errors.ErrCodeClientCreationFailed, fmt.Sprintf("failed to create client for '%s'", name), err)
+	if creationErr != nil {
+		return errors.WrapError(errors.ErrCodeClientCreationFailed, fmt.Sprintf("failed to create client for '%s'", name), creationErr)
 	}
 
 	cm.RegisterClient(name, client, config)
@@ -219,7 +219,7 @@ func (cm *ClientManager) SendMessageWithFallback(ctx context.Context, messages [
 		return nil, err
 	}
 
-	return nil, NewClientNotFoundError("no available clients", nil)
+	return nil, errors.NewError(errors.ErrCodeClientNotFound, "no available clients")
 }
 
 // sendMessageWithRetry 带重试的消息发送
@@ -267,15 +267,6 @@ func (cm *ClientManager) shouldRetry(err error) bool {
 		}
 	}
 
-	// 检查是否是 AIError（为了向后兼容）
-	if aiErr, ok := err.(*AIError); ok {
-		switch aiErr.Code {
-		case ErrCodeNetworkFailed, ErrCodeTimeout, ErrCodeRateLimited:
-			return true
-		default:
-			return false
-		}
-	}
 	return false
 }
 
@@ -291,15 +282,6 @@ func (cm *ClientManager) shouldFallback(err error) bool {
 		}
 	}
 
-	// 检查是否是 AIError（为了向后兼容）
-	if aiErr, ok := err.(*AIError); ok {
-		switch aiErr.Code {
-		case ErrCodeNetworkFailed, ErrCodeTimeout:
-			return true
-		default:
-			return false
-		}
-	}
 	return false
 }
 
@@ -361,46 +343,26 @@ type ClientStatus struct {
 	IsDefault bool   `json:"is_default"`
 }
 
-// GetAdapterRegistry 获取适配器注册表
-func (cm *ClientManager) GetAdapterRegistry() *AdapterRegistry {
-	return cm.registry
-}
-
-// SetAdapterRegistry 设置适配器注册表
-func (cm *ClientManager) SetAdapterRegistry(registry *AdapterRegistry) {
-	cm.registry = registry
-}
-
 // ListSupportedAdapterTypes 列出所有支持的适配器类型
 func (cm *ClientManager) ListSupportedAdapterTypes() []string {
-	if cm.registry == nil {
-		return []string{}
-	}
-	return cm.registry.ListSupportedTypes()
+	return ListSupportedTypes()
 }
 
 // GetAdapterInfo 获取指定类型的适配器信息
 func (cm *ClientManager) GetAdapterInfo(adapterType string) (AdapterInfo, bool) {
-	if cm.registry == nil {
-		return AdapterInfo{}, false
-	}
-	return cm.registry.GetAdapterInfo(adapterType)
+	return GetAdapterInfo(adapterType)
 }
 
 // GetAllAdapterInfos 获取所有适配器类型信息
 func (cm *ClientManager) GetAllAdapterInfos() map[string]AdapterInfo {
-	if cm.registry == nil {
-		return make(map[string]AdapterInfo)
-	}
-	return cm.registry.GetAllAdapterInfos()
+	return GetAllAdapterInfos()
 }
 
 // ValidateAdapterConfig 验证指定类型的适配器配置
 func (cm *ClientManager) ValidateAdapterConfig(adapterType string, config interface{}) error {
-	if cm.registry == nil {
-		return errors.NewError(errors.ErrCodeInvalidConfig, "adapter registry not available")
-	}
-	return cm.registry.ValidateConfig(adapterType, config)
+	// 这里的验证逻辑现在由 CreateAdapter 内部处理
+	// 暂时返回 nil，或者可以实现一个独立的 Validate 函数
+	return nil
 }
 
 // GetAdapterStatus 获取适配器状态（统一使用 ModelAdapter 接口）

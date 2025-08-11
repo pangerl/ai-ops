@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	"ai-ops/internal/common/errors"
 	"ai-ops/internal/config"
-	"ai-ops/internal/util"
+	pkg "ai-ops/internal/pkg"
+	"ai-ops/internal/pkg/errors"
 )
 
 // RAGTool retrieves data from a knowledge base.
@@ -53,7 +53,7 @@ func (t *RAGTool) Execute(ctx context.Context, args map[string]any) (string, err
 	topK := config.Config.RAG.TopK
 	useReranker := true // 默认开启
 
-	util.Infow("执行RAG检索工具", map[string]any{
+	pkg.Infow("执行RAG检索工具", map[string]any{
 		"query":        query,
 		"retrieval_k":  retrievalK,
 		"top_k":        topK,
@@ -62,7 +62,7 @@ func (t *RAGTool) Execute(ctx context.Context, args map[string]any) (string, err
 
 	result, err := t.callRAGAPI(ctx, query, retrievalK, topK, useReranker)
 	if err != nil {
-		util.LogErrorWithFields(err, "RAG检索失败", map[string]any{"query": query})
+		pkg.LogErrorWithFields(err, "RAG检索失败", map[string]any{"query": query})
 		return "", err
 	}
 

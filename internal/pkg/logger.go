@@ -1,6 +1,7 @@
-package util
+package pkg
 
 import (
+	"ai-ops/internal/pkg/errors"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -211,7 +212,7 @@ func (l *Logger) LogError(err error, context string) {
 		"error":   err.Error(),
 	}
 
-	if appErr, ok := err.(*AppError); ok {
+	if appErr, ok := err.(*errors.AppError); ok {
 		fields["error_code"] = appErr.Code
 		if appErr.Details != "" {
 			fields["details"] = appErr.Details
@@ -237,7 +238,7 @@ func (l *Logger) LogErrorWithFields(err error, context string, extraFields map[s
 		fields[key] = value
 	}
 
-	if appErr, ok := err.(*AppError); ok {
+	if appErr, ok := err.(*errors.AppError); ok {
 		fields["error_code"] = appErr.Code
 		if appErr.Details != "" {
 			fields["details"] = appErr.Details
@@ -311,11 +312,11 @@ func InitLogger(level, format, output, file string) error {
 		enableColor = true
 	case "file":
 		if file == "" {
-			return NewError(ErrCodeConfigInvalid, "日志输出为文件时必须指定文件路径")
+			return errors.NewError(errors.ErrCodeConfigInvalid, "日志输出为文件时必须指定文件路径")
 		}
 		f, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
-			return WrapError(ErrCodeConfigInvalid, "无法打开日志文件", err)
+			return errors.WrapError(errors.ErrCodeConfigInvalid, "无法打开日志文件", err)
 		}
 		writer = f
 		enableColor = false

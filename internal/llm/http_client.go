@@ -1,8 +1,8 @@
-package ai
+package llm
 
 import (
-	"ai-ops/internal/common/errors"
-	"ai-ops/internal/util"
+	util "ai-ops/internal/pkg"
+	"ai-ops/internal/pkg/errors"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -64,14 +64,14 @@ func (c *AIHTTPClient) Post(ctx context.Context, endpoint string, payload interf
 	if payload != nil {
 		jsonData, err = json.Marshal(payload)
 		if err != nil {
-			return nil, NewInvalidParametersError("failed to marshal request payload", err)
+			return nil, errors.WrapError(errors.ErrCodeInvalidParameters, "failed to marshal request payload", err)
 		}
 		body = bytes.NewBuffer(jsonData)
 	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", url, body)
 	if err != nil {
-		return nil, NewInvalidParametersError("failed to create HTTP request", err)
+		return nil, errors.WrapError(errors.ErrCodeInvalidParameters, "failed to create HTTP request", err)
 	}
 
 	// 设置默认请求头
@@ -126,7 +126,7 @@ func (c *AIHTTPClient) Post(ctx context.Context, endpoint string, payload interf
 	resp, err := c.client.Do(req)
 	if err != nil {
 		util.Errorw("HTTP 请求失败", map[string]interface{}{"error": err, "url": url})
-		return nil, NewNetworkFailedError("HTTP request failed", err)
+		return nil, errors.WrapError(errors.ErrCodeNetworkFailed, "HTTP request failed", err)
 	}
 
 	// util.Debugw("收到 HTTP 响应", map[string]interface{}{
@@ -146,7 +146,7 @@ func (c *AIHTTPClient) Get(ctx context.Context, endpoint string) (*http.Response
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
-		return nil, NewInvalidParametersError("failed to create HTTP request", err)
+		return nil, errors.WrapError(errors.ErrCodeInvalidParameters, "failed to create HTTP request", err)
 	}
 
 	// 设置默认请求头
@@ -159,7 +159,7 @@ func (c *AIHTTPClient) Get(ctx context.Context, endpoint string) (*http.Response
 
 	resp, err := c.client.Do(req)
 	if err != nil {
-		return nil, NewNetworkFailedError("HTTP request failed", err)
+		return nil, errors.WrapError(errors.ErrCodeNetworkFailed, "HTTP request failed", err)
 	}
 
 	return resp, nil
@@ -179,7 +179,7 @@ func (c *AIHTTPClient) PostJSON(ctx context.Context, endpoint string, payload in
 
 	if result != nil {
 		if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-			return NewInvalidResponseError("failed to decode response", err)
+			return errors.WrapError(errors.ErrCodeInvalidResponse, "failed to decode response", err)
 		}
 	}
 
@@ -200,7 +200,7 @@ func (c *AIHTTPClient) GetJSON(ctx context.Context, endpoint string, result inte
 
 	if result != nil {
 		if err := json.NewDecoder(resp.Body).Decode(result); err != nil {
-			return NewInvalidResponseError("failed to decode response", err)
+			return errors.WrapError(errors.ErrCodeInvalidResponse, "failed to decode response", err)
 		}
 	}
 
@@ -216,7 +216,7 @@ func (c *AIHTTPClient) handleHTTPError(resp *http.Response) error {
 	// 读取错误响应体
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return NewNetworkFailedError(fmt.Sprintf("HTTP %d: failed to read error response", resp.StatusCode), err)
+		return errors.WrapError(errors.ErrCodeNetworkFailed, fmt.Sprintf("HTTP %d: failed to read error response", resp.StatusCode), err)
 	}
 
 	// 记录错误响应
@@ -228,17 +228,17 @@ func (c *AIHTTPClient) handleHTTPError(resp *http.Response) error {
 
 	switch resp.StatusCode {
 	case 400:
-		return NewInvalidParametersError("Bad Request", fmt.Errorf("%s", body))
+		return errors.NewErrorWithDetails(errors.ErrCodeInvalidParameters, "Bad Request", string(body))
 	case 401:
-		return NewAPIKeyMissingError("Unauthorized", fmt.Errorf("%s", body))
+		return errors.NewErrorWithDetails(errors.ErrCodeAPIKeyMissing, "Unauthorized", string(body))
 	case 403:
-		return NewForbiddenError("Forbidden", fmt.Errorf("%s", body))
+		return errors.NewErrorWithDetails(errors.ErrCodeForbidden, "Forbidden", string(body))
 	case 429:
-		return NewRateLimitedError("Rate Limited", fmt.Errorf("%s", body))
+		return errors.NewErrorWithDetails(errors.ErrCodeRateLimited, "Rate Limited", string(body))
 	case 500, 502, 503, 504:
-		return NewNetworkFailedError("Server Error", fmt.Errorf("%s", body))
+		return errors.NewErrorWithDetails(errors.ErrCodeNetworkFailed, "Server Error", string(body))
 	default:
-		return NewNetworkFailedError(fmt.Sprintf("HTTP %d", resp.StatusCode), fmt.Errorf("%s", body))
+		return errors.NewErrorWithDetails(errors.ErrCodeNetworkFailed, fmt.Sprintf("HTTP %d", resp.StatusCode), string(body))
 	}
 }
 
@@ -273,7 +273,7 @@ func (c *RetryableHTTPClient) PostJSONWithRetry(ctx context.Context, endpoint st
 			})
 			select {
 			case <-ctx.Done():
-				return NewContextCanceledError("request context canceled", ctx.Err())
+				return errors.WrapError(errors.ErrCodeContextCanceled, "request context canceled", ctx.Err())
 			case <-time.After(backoff):
 			}
 		}
@@ -306,14 +306,5 @@ func (c *RetryableHTTPClient) shouldRetry(err error) bool {
 		}
 	}
 
-	// 检查是否是 AIError（为了向后兼容）
-	if aiErr, ok := err.(*AIError); ok {
-		switch aiErr.Code {
-		case ErrCodeNetworkFailed, ErrCodeTimeout, ErrCodeRateLimited:
-			return true
-		default:
-			return false
-		}
-	}
 	return false
 }

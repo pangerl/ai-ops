@@ -3,7 +3,7 @@ package tools
 import (
 	"context"
 
-	"ai-ops/internal/common/registry"
+	"ai-ops/internal/pkg/registry"
 )
 
 // PluginFactory 插件工厂函数类型

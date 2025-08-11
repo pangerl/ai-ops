@@ -1,18 +1,20 @@
 package tools
 
 import (
+	"ai-ops/internal/pkg"
+	"ai-ops/internal/pkg/errors"
+	"ai-ops/internal/pkg/registry"
+	"ai-ops/internal/services"
 	"context"
 	"fmt"
 	"reflect"
 	"sync"
 	"time"
-
-	"ai-ops/internal/common/registry"
-	"ai-ops/internal/util"
 )
 
-var (
-	DefaultManager = NewToolManager()
+const (
+	// ToolRegistryKey 是工具注册表在中央服务中的键名
+	ToolRegistryKey = "tools"
 )
 
 // ToolManager 工具管理器接口
@@ -47,16 +49,39 @@ type DefaultToolManager struct {
 }
 
 // NewToolManager 创建新的工具管理器
-func NewToolManager() ToolManager {
+func NewToolManager() (ToolManager, error) {
+	service := services.GetRegistryService()
+	instance, exists := service.Get(ToolRegistryKey)
+	if !exists {
+		return nil, fmt.Errorf("tool registry with key '%s' not found in central service", ToolRegistryKey)
+	}
+
+	reg, ok := instance.(registry.Registry[Tool])
+	if !ok {
+		return nil, fmt.Errorf("invalid type for tool registry in central service")
+	}
+
 	return &DefaultToolManager{
-		registry:  registry.NewRegistry[Tool](),
+		registry:  reg,
 		factories: make(map[string]PluginFactory),
+	}, nil
+}
+
+// InitRegistry 初始化工具注册表并将其注册到中央服务
+func InitRegistry() {
+	service := services.GetRegistryService()
+	if _, exists := service.Get(ToolRegistryKey); !exists {
+		reg := registry.NewRegistry[Tool]()
+		err := service.Register(ToolRegistryKey, reg)
+		if err != nil {
+			panic(fmt.Sprintf("failed to register tool registry: %v", err))
+		}
 	}
 }
 
 // RegisterTool 注册工具
 func (m *DefaultToolManager) RegisterTool(tool Tool) error {
-	util.Infow("注册工具", map[string]any{
+	pkg.Infow("注册工具", map[string]any{
 		"tool_name": tool.ID(),
 	})
 	return m.registry.Register(tool)
@@ -68,7 +93,7 @@ func (m *DefaultToolManager) RegisterToolFactory(name string, factory PluginFact
 	defer m.mutex.Unlock()
 
 	m.factories[name] = factory
-	util.Debugw("插件工厂已注册", map[string]any{
+	pkg.Debugw("插件工厂已注册", map[string]any{
 		"plugin_name": name,
 	})
 }
@@ -83,19 +108,19 @@ func (m *DefaultToolManager) InitializePlugins() {
 
 		// 使用反射检查是否实现了Tool接口
 		if tool, ok := instance.(Tool); ok {
-			util.Debugw("创建插件工具实例", map[string]any{
+			pkg.Debugw("创建插件工具实例", map[string]any{
 				"plugin_name": name,
 				"tool_name":   tool.Name(),
 			})
 			if err := m.RegisterTool(tool); err != nil {
-				util.Warnw("注册插件工具失败", map[string]any{
+				pkg.Warnw("注册插件工具失败", map[string]any{
 					"plugin_name": name,
 					"tool_name":   tool.Name(),
 					"error":       err,
 				})
 			}
 		} else {
-			util.Warnw("插件实例未实现Tool接口", map[string]any{
+			pkg.Warnw("插件实例未实现Tool接口", map[string]any{
 				"plugin_name": name,
 				"type":        reflect.TypeOf(instance).String(),
 			})
@@ -112,7 +137,7 @@ func (m *DefaultToolManager) GetTools() []Tool {
 func (m *DefaultToolManager) GetTool(name string) (Tool, error) {
 	tool, found := m.registry.Get(name)
 	if !found {
-		return nil, util.NewToolNotFoundError(name)
+		return nil, errors.NewToolNotFoundError(name)
 	}
 	return tool, nil
 }
@@ -136,7 +161,7 @@ func (m *DefaultToolManager) ExecuteToolCall(ctx context.Context, call ToolCall)
 	startTime := time.Now()
 
 	// 记录工具调用开始
-	util.Infow("开始执行工具调用", map[string]any{
+	pkg.Infow("开始执行工具调用", map[string]any{
 		"tool_name": call.Name,
 		"call_id":   call.ID,
 		"arguments": call.Arguments,
@@ -145,7 +170,7 @@ func (m *DefaultToolManager) ExecuteToolCall(ctx context.Context, call ToolCall)
 	// 获取工具
 	tool, err := m.GetTool(call.Name)
 	if err != nil {
-		util.LogErrorWithFields(err, "工具获取失败", map[string]any{
+		pkg.LogErrorWithFields(err, "工具获取失败", map[string]any{
 			"tool_name": call.Name,
 			"call_id":   call.ID,
 		})
@@ -158,20 +183,20 @@ func (m *DefaultToolManager) ExecuteToolCall(ctx context.Context, call ToolCall)
 
 	if err != nil {
 		// 记录执行失败
-		util.LogErrorWithFields(err, "工具执行失败", map[string]any{
+		pkg.LogErrorWithFields(err, "工具执行失败", map[string]any{
 			"tool_name":      call.Name,
 			"call_id":        call.ID,
 			"execution_time": executionTime,
 		})
 
 		// 包装错误
-		wrappedErr := util.WrapToolError(
+		wrappedErr := errors.WrapToolError(
 			fmt.Sprintf("工具 %s 执行失败", call.Name), err)
 		return "", wrappedErr
 	}
 
 	// 记录执行成功
-	util.Infow("工具执行成功", map[string]any{
+	pkg.Infow("工具执行成功", map[string]any{
 		"tool_name":      call.Name,
 		"call_id":        call.ID,
 		"execution_time": executionTime,

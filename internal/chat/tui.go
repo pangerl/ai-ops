@@ -9,8 +9,8 @@ import (
 	"strings"
 	"time"
 
-	"ai-ops/internal/ai"
 	"ai-ops/internal/config"
+	ai "ai-ops/internal/llm"
 	"ai-ops/internal/tools"
 
 	"github.com/briandowns/spinner"

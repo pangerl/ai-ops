@@ -1,10 +1,10 @@
-package ai
+package llm
 
 import (
-	"ai-ops/internal/common/errors"
 	cfg "ai-ops/internal/config"
+	pkg "ai-ops/internal/pkg"
+	"ai-ops/internal/pkg/errors"
 	"ai-ops/internal/tools"
-	"ai-ops/internal/util"
 	"context"
 	"fmt"
 	"strings"
@@ -133,7 +133,7 @@ func createGeminiClient(modelCfg cfg.ModelConfig) (*GeminiClient, error) {
 	// 默认启用提供商特定错误映射
 	client.SetErrorMapper(CreateErrorMapperForProvider("gemini"))
 
-	util.Debugw("Gemini 适配器创建成功", map[string]interface{}{
+	pkg.Debugw("Gemini 适配器创建成功", map[string]interface{}{
 		"model":      modelName,
 		"max_tokens": maxTokens,
 		"base_url":   baseURL,
@@ -203,7 +203,7 @@ func (c *GeminiClient) ValidateConfig(config interface{}) error {
 		}
 
 		if !modelSupported {
-			util.Debugw("使用非标准 Gemini 模型", map[string]interface{}{
+			pkg.Debugw("使用非标准 Gemini 模型", map[string]interface{}{
 				"model": modelConfig.Model,
 			})
 		}
@@ -485,19 +485,19 @@ func init() {
 
 	// 注册适配器工厂函数
 	if err := RegisterAdapterFactory("gemini", NewGeminiAdapter, adapterInfo); err != nil {
-		util.Errorw("注册 Gemini 适配器失败", map[string]interface{}{
+		pkg.Errorw("注册 Gemini 适配器失败", map[string]interface{}{
 			"error": err.Error(),
 		})
 	}
 
 	// 注册配置验证器
 	if err := RegisterConfigValidator("gemini", validateGeminiConfig); err != nil {
-		util.Errorw("注册 Gemini 配置验证器失败", map[string]interface{}{
+		pkg.Errorw("注册 Gemini 配置验证器失败", map[string]interface{}{
 			"error": err.Error(),
 		})
 	}
 
-	util.Debugw("Gemini 适配器注册成功", map[string]interface{}{
+	pkg.Debugw("Gemini 适配器注册成功", map[string]interface{}{
 		"type":             "gemini",
 		"supported_models": adapterInfo.SupportedModels,
 		"capabilities":     len(adapterInfo.Capabilities),
