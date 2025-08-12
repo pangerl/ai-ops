@@ -1,11 +1,10 @@
 package llm
 
 import (
-	"ai-ops/internal/pkg/errors"
-	"ai-ops/internal/pkg/registry"
-	"ai-ops/internal/services"
+	"ai-ops/internal/util"
+	"ai-ops/internal/util/errors"
+	"ai-ops/pkg/registry"
 	"fmt"
-	"sync"
 	"time"
 )
 
@@ -45,27 +44,27 @@ func (a *AdapterItem) Type() string {
 // --- 全局注册表实例 ---
 var (
 	llmRegistry registry.Registry[*AdapterItem]
-	once        sync.Once
 )
 
 // InitRegistry 初始化LLM注册表
 func InitRegistry() {
-	once.Do(func() {
-		service := services.GetRegistryService()
-		reg := registry.NewRegistry[*AdapterItem]()
-		err := service.Register(LLMRegistryKey, reg)
-		if err != nil {
-			// 如果注册失败（例如，键已存在），则尝试获取现有实例
-			if instance, ok := service.Get(LLMRegistryKey); ok {
-				llmRegistry = instance.(registry.Registry[*AdapterItem])
-			} else {
-				// 这是一个严重错误，表示注册服务状态不一致
-				panic(fmt.Sprintf("failed to initialize or get LLM registry: %v", err))
-			}
+	if llmRegistry != nil {
+		return // 已经初始化
+	}
+	regService := util.GetRegistryService()
+	reg := registry.NewRegistry[*AdapterItem]()
+	err := regService.Register(LLMRegistryKey, reg)
+	if err != nil {
+		// 如果注册失败（例如，键已存在），则尝试获取现有实例
+		if instance, ok := regService.Get(LLMRegistryKey); ok {
+			llmRegistry = instance.(registry.Registry[*AdapterItem])
 		} else {
-			llmRegistry = reg
+			// 这是一个严重错误，表示注册服务状态不一致
+			panic(fmt.Sprintf("failed to initialize or get LLM registry: %v", err))
 		}
-	})
+	} else {
+		llmRegistry = reg
+	}
 }
 
 // getRegistry 获取LLM注册表实例

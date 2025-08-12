@@ -6,8 +6,8 @@ import (
 	"slices"
 	"time"
 
-	"ai-ops/internal/pkg"
-	"ai-ops/internal/pkg/errors"
+	"ai-ops/internal/util"
+	"ai-ops/internal/util/errors"
 )
 
 // ToolCallExecutor 工具调用执行器（增强版）
@@ -33,7 +33,7 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 		// 创建带超时的上下文
 		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
 
-		pkg.Infow("开始工具执行（尝试）", map[string]any{
+		util.Infow("开始工具执行（尝试）", map[string]any{
 			"tool_name":  call.Name,
 			"call_id":    call.ID,
 			"attempt":    i + 1,
@@ -49,7 +49,7 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 			if timeoutCtx.Err() == context.DeadlineExceeded {
 				// 先释放本轮上下文资源
 				cancel()
-				pkg.LogErrorWithFields(err, "工具执行超时", map[string]any{
+				util.LogErrorWithFields(err, "工具执行超时", map[string]any{
 					"tool_name":  call.Name,
 					"call_id":    call.ID,
 					"timeout_ms": timeoutMs,
@@ -63,7 +63,7 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 			if i < e.maxRetries && shouldRetry(err) {
 				// 释放本轮上下文资源再重试
 				cancel()
-				pkg.Warnw("工具执行失败，准备重试", map[string]any{
+				util.Warnw("工具执行失败，准备重试", map[string]any{
 					"tool_name":   call.Name,
 					"call_id":     call.ID,
 					"error":       err.Error(),
@@ -80,7 +80,7 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 
 		// 执行成功，释放本轮上下文资源并返回结果
 		cancel()
-		pkg.Infow("工具执行成功", map[string]any{
+		util.Infow("工具执行成功", map[string]any{
 			"tool_name":     call.Name,
 			"call_id":       call.ID,
 			"result_length": len(result),

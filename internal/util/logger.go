@@ -1,7 +1,7 @@
-package pkg
+package util
 
 import (
-	"ai-ops/internal/pkg/errors"
+	"ai-ops/internal/util/errors"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -176,17 +176,17 @@ func (l *Logger) Info(message string) {
 	l.log(LogLevelInfo, message, nil)
 }
 
-// Info级别日志（带字段）
+// Info 级别日志（带字段）
 func (l *Logger) Infow(message string, fields map[string]interface{}) {
 	l.log(LogLevelInfo, message, fields)
 }
 
-// Warn级别日志
+// Warn 级别日志
 func (l *Logger) Warn(message string) {
 	l.log(LogLevelWarn, message, nil)
 }
 
-// Warn级别日志（带字段）
+// Warnw 级别日志（带字段）
 func (l *Logger) Warnw(message string, fields map[string]interface{}) {
 	l.log(LogLevelWarn, message, fields)
 }
@@ -248,7 +248,7 @@ func (l *Logger) LogErrorWithFields(err error, context string, extraFields map[s
 	l.log(LogLevelError, "发生错误", fields)
 }
 
-// 全局日志函数（使用默认日志器）
+// Debug 全局日志函数（使用默认日志器）
 func Debug(message string) {
 	DefaultLogger.Debug(message)
 }
@@ -289,7 +289,7 @@ func LogErrorWithFields(err error, context string, extraFields map[string]interf
 	DefaultLogger.LogErrorWithFields(err, context, extraFields)
 }
 
-// 初始化日志器（根据配置）
+// InitLogger 初始化日志器（根据配置）
 func InitLogger(level, format, output, file string) error {
 	logLevel := ParseLogLevel(level)
 

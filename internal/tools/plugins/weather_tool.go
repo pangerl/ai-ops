@@ -12,8 +12,8 @@ import (
 	"time"
 
 	"ai-ops/internal/config"
-	pkg "ai-ops/internal/pkg"
-	"ai-ops/internal/pkg/errors"
+	pkg "ai-ops/internal/util"
+	"ai-ops/internal/util/errors"
 )
 
 // WeatherTool 天气工具实现

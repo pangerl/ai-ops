@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	util "ai-ops/internal/pkg"
+	util "ai-ops/internal/util"
 
 	"github.com/BurntSushi/toml"
 )

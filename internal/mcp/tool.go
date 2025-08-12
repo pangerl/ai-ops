@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	pkg "ai-ops/internal/pkg"
-	"ai-ops/internal/pkg/errors"
+	pkg "ai-ops/internal/util"
+	"ai-ops/internal/util/errors"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )

@@ -21,7 +21,7 @@ import (
 
 // TUI represents the text user interface for the chat.
 type TUI struct {
-	client          ai.AIClient
+	client          ai.ModelAdapter
 	toolManager     tools.ToolManager
 	session         *Session
 	rl              *readline.Instance
@@ -33,7 +33,7 @@ type TUI struct {
 }
 
 // NewTUI creates a new TUI.
-func NewTUI(client ai.AIClient, toolManager tools.ToolManager) (*TUI, error) {
+func NewTUI(client ai.ModelAdapter, toolManager tools.ToolManager) (*TUI, error) {
 	userColor := color.New(color.FgGreen).Add(color.Bold)
 	aiColor := color.New(color.FgCyan)
 	aiResponseColor := color.New(color.FgHiWhite)
@@ -154,7 +154,7 @@ func (t *TUI) printHelp() {
 }
 
 // RunSimpleLoop initializes and runs the TUI.
-func RunSimpleLoop(client ai.AIClient, toolManager tools.ToolManager) {
+func RunSimpleLoop(client ai.ModelAdapter, toolManager tools.ToolManager) {
 	tui, err := NewTUI(client, toolManager)
 	if err != nil {
 		fmt.Printf("初始化TUI失败: %v\n", err)

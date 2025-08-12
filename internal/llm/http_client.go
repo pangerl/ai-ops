@@ -1,8 +1,8 @@
 package llm
 
 import (
-	util "ai-ops/internal/pkg"
-	"ai-ops/internal/pkg/errors"
+	util "ai-ops/internal/util"
+	"ai-ops/internal/util/errors"
 	"bytes"
 	"context"
 	"encoding/json"

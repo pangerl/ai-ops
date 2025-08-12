@@ -2,9 +2,9 @@ package llm
 
 import (
 	cfg "ai-ops/internal/config"
-	pkg "ai-ops/internal/pkg"
-	"ai-ops/internal/pkg/errors"
 	"ai-ops/internal/tools"
+	"ai-ops/internal/util"
+	"ai-ops/internal/util/errors"
 	"context"
 	"fmt"
 	"strings"
@@ -17,11 +17,6 @@ type GeminiClient struct {
 	httpClient   *RetryableHTTPClient
 	config       cfg.ModelConfig
 	modelInfo    ModelInfo
-}
-
-// NewGeminiClient 创建新的 Gemini 客户端（保持向后兼容）
-func NewGeminiClient(config cfg.ModelConfig) (*GeminiClient, error) {
-	return createGeminiClient(config)
 }
 
 // NewGeminiAdapter 创建新的 Gemini 适配器（工厂函数）
@@ -133,7 +128,7 @@ func createGeminiClient(modelCfg cfg.ModelConfig) (*GeminiClient, error) {
 	// 默认启用提供商特定错误映射
 	client.SetErrorMapper(CreateErrorMapperForProvider("gemini"))
 
-	pkg.Debugw("Gemini 适配器创建成功", map[string]interface{}{
+	util.Debugw("Gemini 适配器创建成功", map[string]interface{}{
 		"model":      modelName,
 		"max_tokens": maxTokens,
 		"base_url":   baseURL,
@@ -203,7 +198,7 @@ func (c *GeminiClient) ValidateConfig(config interface{}) error {
 		}
 
 		if !modelSupported {
-			pkg.Debugw("使用非标准 Gemini 模型", map[string]interface{}{
+			util.Debugw("使用非标准 Gemini 模型", map[string]interface{}{
 				"model": modelConfig.Model,
 			})
 		}
@@ -415,91 +410,14 @@ type SafetyRating struct {
 	Probability string `json:"probability"`
 }
 
-// validateGeminiConfig Gemini 配置验证器
-func validateGeminiConfig(config interface{}) error {
-	modelConfig, ok := config.(cfg.ModelConfig)
-	if !ok {
-		return errors.NewError(errors.ErrCodeInvalidConfig, "config must be of type cfg.ModelConfig")
-	}
-
-	if modelConfig.APIKey == "" {
-		return errors.NewError(errors.ErrCodeAPIKeyMissing, "API key is required for Gemini")
-	}
-
-	return nil
-}
-
-// init 函数，在包加载时注册 Gemini 适配器
-func init() {
-	// 定义适配器信息
-	adapterInfo := AdapterInfo{
-		Name:         "Gemini",
-		Type:         "gemini",
-		Version:      "1.0.0",
-		Description:  "Google Gemini 模型适配器，支持 Gemini Pro 和 Flash 系列模型",
-		Provider:     "Google",
-		DefaultModel: "gemini-2.0-flash-exp",
-		SupportedModels: []string{
-			"gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.5-flash",
-			"gemini-1.0-pro", "gemini-pro", "gemini-2.5-flash",
-		},
-		Capabilities: []AdapterCapability{
-			CapabilityChat,
-			CapabilityToolCalling,
-			CapabilityTextGeneration,
-		},
-		MaxTokens: 1048576, // Gemini 1.5/2.0 的最大值
-		ConfigSchema: map[string]interface{}{
-			"type": map[string]interface{}{
-				"type":        "string",
-				"required":    true,
-				"enum":        []string{"gemini"},
-				"description": "适配器类型",
-			},
-			"api_key": map[string]interface{}{
-				"type":        "string",
-				"required":    true,
-				"description": "Google Gemini API 密钥",
-			},
-			"base_url": map[string]interface{}{
-				"type":        "string",
-				"required":    false,
-				"default":     "https://generativelanguage.googleapis.com/v1beta/",
-				"description": "API 基础 URL",
-			},
-			"model": map[string]interface{}{
-				"type":        "string",
-				"required":    false,
-				"default":     "gemini-2.0-flash-exp",
-				"description": "要使用的模型名称",
-			},
-			"timeout": map[string]interface{}{
-				"type":        "integer",
-				"required":    false,
-				"default":     60,
-				"minimum":     1,
-				"description": "请求超时时间（秒）",
-			},
-		},
-	}
-
-	// 注册适配器工厂函数
-	if err := RegisterAdapterFactory("gemini", NewGeminiAdapter, adapterInfo); err != nil {
-		pkg.Errorw("注册 Gemini 适配器失败", map[string]interface{}{
-			"error": err.Error(),
-		})
-	}
-
-	// 注册配置验证器
-	if err := RegisterConfigValidator("gemini", validateGeminiConfig); err != nil {
-		pkg.Errorw("注册 Gemini 配置验证器失败", map[string]interface{}{
-			"error": err.Error(),
-		})
-	}
-
-	pkg.Debugw("Gemini 适配器注册成功", map[string]interface{}{
-		"type":             "gemini",
-		"supported_models": adapterInfo.SupportedModels,
-		"capabilities":     len(adapterInfo.Capabilities),
-	})
+// GeminiAdapterInfo 包含 Gemini 适配器的静态信息。
+var GeminiAdapterInfo = AdapterInfo{
+	Name:            "Gemini",
+	Type:            "gemini",
+	Version:         "1.0.0",
+	Description:     "Google Gemini 模型适配器",
+	Provider:        "Google",
+	DefaultModel:    "gemini-2.0-flash-exp",
+	SupportedModels: []string{"gemini-2.0-flash-exp", "gemini-1.5-pro", "gemini-1.5-flash", "gemini-1.0-pro", "gemini-pro"},
+	Capabilities:    []AdapterCapability{CapabilityChat, CapabilityToolCalling, CapabilityTextGeneration},
 }

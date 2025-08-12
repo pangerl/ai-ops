@@ -6,9 +6,9 @@ import (
 	"path/filepath"
 	"time"
 
-	util "ai-ops/internal/pkg"
-	"ai-ops/internal/pkg/errors"
 	"ai-ops/internal/tools"
+	util "ai-ops/internal/util"
+	"ai-ops/internal/util/errors"
 )
 
 // MCPService MCP集成服务

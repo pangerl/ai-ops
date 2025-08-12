@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"ai-ops/internal/config"
-	pkg "ai-ops/internal/pkg"
-	"ai-ops/internal/pkg/errors"
+	pkg "ai-ops/internal/util"
+	"ai-ops/internal/util/errors"
 )
 
 // RAGTool retrieves data from a knowledge base.

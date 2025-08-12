@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	pkg "ai-ops/internal/pkg"
-	"ai-ops/internal/pkg/errors"
+	pkg "ai-ops/internal/util"
+	"ai-ops/internal/util/errors"
 )
 
 // EchoTool 回显工具实现

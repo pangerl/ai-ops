@@ -7,9 +7,9 @@ import (
 	"time"
 
 	cfg "ai-ops/internal/config"
-	pkg "ai-ops/internal/pkg"
-	"ai-ops/internal/pkg/errors"
 	"ai-ops/internal/tools"
+	"ai-ops/internal/util"
+	"ai-ops/internal/util/errors"
 )
 
 // OpenAIClient OpenAI AI 客户端实现，实现 ModelAdapter 接口
@@ -18,11 +18,6 @@ type OpenAIClient struct {
 	httpClient   *RetryableHTTPClient
 	config       cfg.ModelConfig
 	modelInfo    ModelInfo
-}
-
-// NewOpenAIClient 创建新的 OpenAI 客户端（保持向后兼容）
-func NewOpenAIClient(config cfg.ModelConfig) (*OpenAIClient, error) {
-	return createOpenAIClient(config)
 }
 
 // NewOpenAIAdapter 创建新的 OpenAI 适配器（工厂函数）
@@ -162,7 +157,7 @@ func createOpenAIClient(modelCfg cfg.ModelConfig) (*OpenAIClient, error) {
 	// 默认启用提供商特定错误映射，便于统一错误语义
 	client.SetErrorMapper(CreateErrorMapperForProvider("openai"))
 
-	pkg.Debugw("OpenAI 适配器创建成功", map[string]interface{}{
+	util.Debugw("OpenAI 适配器创建成功", map[string]interface{}{
 		"model":      modelName,
 		"max_tokens": maxTokens,
 		"base_url":   effectiveBaseURL,
@@ -232,7 +227,7 @@ func (c *OpenAIClient) ValidateConfig(config interface{}) error {
 		}
 
 		if !modelSupported {
-			pkg.Debugw("使用非标准 OpenAI 模型", map[string]interface{}{
+			util.Debugw("使用非标准 OpenAI 模型", map[string]interface{}{
 				"model": modelConfig.Model,
 			})
 		}
@@ -442,91 +437,14 @@ type OpenAIUsage struct {
 	TotalTokens      int `json:"total_tokens"`
 }
 
-// validateOpenAIConfig OpenAI 配置验证器
-func validateOpenAIConfig(config interface{}) error {
-	modelConfig, ok := config.(cfg.ModelConfig)
-	if !ok {
-		return errors.NewError(errors.ErrCodeInvalidConfig, "config must be of type cfg.ModelConfig")
-	}
-
-	if modelConfig.APIKey == "" {
-		return errors.NewError(errors.ErrCodeAPIKeyMissing, "API key is required for OpenAI")
-	}
-
-	return nil
-}
-
-// init 函数，在包加载时注册 OpenAI 适配器
-func init() {
-	// 定义适配器信息
-	adapterInfo := AdapterInfo{
-		Name:         "OpenAI",
-		Type:         "openai",
-		Version:      "1.0.0",
-		Description:  "OpenAI GPT 模型适配器，支持 GPT-4 和 GPT-3.5 系列模型",
-		Provider:     "OpenAI",
-		DefaultModel: "gpt-4o-mini",
-		SupportedModels: []string{
-			"gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4",
-			"gpt-3.5-turbo", "gpt-3.5-turbo-16k",
-		},
-		Capabilities: []AdapterCapability{
-			CapabilityChat,
-			CapabilityToolCalling,
-			CapabilityTextGeneration,
-		},
-		MaxTokens: 128000, // GPT-4 Turbo 的最大值
-		ConfigSchema: map[string]interface{}{
-			"type": map[string]interface{}{
-				"type":        "string",
-				"required":    true,
-				"enum":        []string{"openai"},
-				"description": "适配器类型",
-			},
-			"api_key": map[string]interface{}{
-				"type":        "string",
-				"required":    true,
-				"description": "OpenAI API 密钥",
-			},
-			"base_url": map[string]interface{}{
-				"type":        "string",
-				"required":    false,
-				"default":     "https://api.openai.com",
-				"description": "API 基础 URL，可用于代理服务器",
-			},
-			"model": map[string]interface{}{
-				"type":        "string",
-				"required":    false,
-				"default":     "gpt-4o-mini",
-				"description": "要使用的模型名称",
-			},
-			"timeout": map[string]interface{}{
-				"type":        "integer",
-				"required":    false,
-				"default":     30,
-				"minimum":     1,
-				"description": "请求超时时间（秒）",
-			},
-		},
-	}
-
-	// 注册适配器工厂函数
-	if err := RegisterAdapterFactory("openai", NewOpenAIAdapter, adapterInfo); err != nil {
-		pkg.Errorw("注册 OpenAI 适配器失败", map[string]interface{}{
-			"error": err.Error(),
-		})
-	}
-
-	// 注册配置验证器
-	if err := RegisterConfigValidator("openai", validateOpenAIConfig); err != nil {
-		pkg.Errorw("注册 OpenAI 配置验证器失败", map[string]interface{}{
-			"error": err.Error(),
-		})
-	}
-
-	pkg.Debugw("OpenAI 适配器注册成功", map[string]interface{}{
-		"type":             "openai",
-		"supported_models": adapterInfo.SupportedModels,
-		"capabilities":     len(adapterInfo.Capabilities),
-	})
+// OpenAIAdapterInfo 包含 OpenAI 适配器的静态信息。
+var OpenAIAdapterInfo = AdapterInfo{
+	Name:            "OpenAI",
+	Type:            "openai",
+	Version:         "1.0.0",
+	Description:     "OpenAI GPT 模型适配器",
+	Provider:        "OpenAI",
+	DefaultModel:    "gpt-4o-mini",
+	SupportedModels: []string{"gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-4", "gpt-3.5-turbo", "gpt-3.5-turbo-16k"},
+	Capabilities:    []AdapterCapability{CapabilityChat, CapabilityToolCalling, CapabilityTextGeneration},
 }

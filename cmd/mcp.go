@@ -11,8 +11,8 @@ import (
 	"github.com/spf13/cobra"
 
 	"ai-ops/internal/mcp"
-	"ai-ops/internal/pkg/errors"
 	"ai-ops/internal/tools"
+	"ai-ops/internal/util/errors"
 )
 
 // mcpCmd represents the mcp command

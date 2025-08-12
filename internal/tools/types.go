@@ -2,8 +2,6 @@ package tools
 
 import (
 	"context"
-
-	"ai-ops/internal/pkg/registry"
 )
 
 // PluginFactory 插件工厂函数类型
@@ -11,7 +9,12 @@ type PluginFactory func() interface{}
 
 // Tool 工具接口定义
 type Tool interface {
-	registry.RegistryItem
+	// ID 返回工具的唯一标识符
+	ID() string
+	// Name 返回工具的名称
+	Name() string
+	// Type 返回工具的类型
+	Type() string
 
 	// Description 获取工具描述
 	Description() string

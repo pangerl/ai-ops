@@ -5,26 +5,26 @@ import (
 	"encoding/json"
 	"fmt"
 
-	ai "ai-ops/internal/llm"
-	util "ai-ops/internal/pkg"
+	"ai-ops/internal/llm"
 	"ai-ops/internal/tools"
+	"ai-ops/internal/util"
 )
 
 // Session 管理一个独立的对话会话
 type Session struct {
-	client      ai.AIClient
+	client      llm.ModelAdapter
 	toolManager tools.ToolManager
-	messages    []ai.Message
+	messages    []llm.Message
 	toolDefs    []tools.ToolDefinition
 	maxHistory  int // 最大历史记录条数
 }
 
 // NewSession 创建一个新的对话会话
-func NewSession(client ai.AIClient, toolManager tools.ToolManager) *Session {
+func NewSession(client llm.ModelAdapter, toolManager tools.ToolManager) *Session {
 	return &Session{
 		client:      client,
 		toolManager: toolManager,
-		messages:    make([]ai.Message, 0),
+		messages:    make([]llm.Message, 0),
 		toolDefs:    toolManager.GetToolDefinitions(),
 		maxHistory:  10, // 默认保留最近10条消息
 	}
@@ -35,7 +35,7 @@ func (s *Session) ProcessMessage(ctx context.Context, userInput string) (string,
 	// 标记本轮对话的起始位置
 	roundStartIndex := len(s.messages)
 	// 将用户输入添加到消息历史
-	s.messages = append(s.messages, ai.Message{Role: "user", Content: userInput})
+	s.messages = append(s.messages, llm.Message{Role: "user", Content: userInput})
 
 	for {
 		s.trimHistory()
@@ -52,7 +52,7 @@ func (s *Session) ProcessMessage(ctx context.Context, userInput string) (string,
 		util.Infow("收到 AI 响应", map[string]any{"response": string(respBytes)})
 
 		// 将 AI 的响应（不含工具调用）添加到历史记录
-		aiResponseMsg := ai.Message{
+		aiResponseMsg := llm.Message{
 			Role:      "assistant",
 			Content:   resp.Content,
 			ToolCalls: resp.ToolCalls,
@@ -103,7 +103,7 @@ func (s *Session) trimHistory() {
 	firstMessage := s.messages[0]
 	recentMessages := s.messages[len(s.messages)-(s.maxHistory-1):]
 
-	s.messages = make([]ai.Message, 0, s.maxHistory)
+	s.messages = make([]llm.Message, 0, s.maxHistory)
 	s.messages = append(s.messages, firstMessage)
 	s.messages = append(s.messages, recentMessages...)
 }
@@ -128,7 +128,7 @@ func (s *Session) consolidateHistory(roundStartIndex int) {
 	finalAssistantMessage.ToolCalls = nil
 
 	// 构建新的、整合后的历史记录
-	newMessages := make([]ai.Message, 0, len(previousHistory)+2)
+	newMessages := make([]llm.Message, 0, len(previousHistory)+2)
 	newMessages = append(newMessages, previousHistory...)
 	newMessages = append(newMessages, userMessage)
 	newMessages = append(newMessages, finalAssistantMessage)
@@ -138,8 +138,8 @@ func (s *Session) consolidateHistory(roundStartIndex int) {
 }
 
 // executeTools 执行工具调用并返回结果消息
-func (s *Session) executeTools(ctx context.Context, toolCalls []ai.ToolCall) ([]ai.Message, error) {
-	var toolMessages []ai.Message
+func (s *Session) executeTools(ctx context.Context, toolCalls []llm.ToolCall) ([]llm.Message, error) {
+	var toolMessages []llm.Message
 
 	for _, tc := range toolCalls {
 		result, err := s.toolManager.ExecuteToolCall(ctx, tools.ToolCall{
@@ -163,7 +163,7 @@ func (s *Session) executeTools(ctx context.Context, toolCalls []ai.ToolCall) ([]
 		}
 
 		// 创建工具结果消息
-		toolMessage := ai.Message{
+		toolMessage := llm.Message{
 			Role:       "tool",
 			Content:    content,
 			ToolCallID: tc.ID,

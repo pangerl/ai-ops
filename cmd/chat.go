@@ -8,11 +8,10 @@ import (
 	"github.com/spf13/cobra"
 
 	"ai-ops/internal/chat"
-	ai "ai-ops/internal/llm"
+	"ai-ops/internal/config"
+	"ai-ops/internal/llm"
 	"ai-ops/internal/mcp"
-	util "ai-ops/internal/pkg"
-	"ai-ops/internal/tools"
-	"ai-ops/internal/tools/plugins"
+	"ai-ops/internal/util"
 )
 
 // chatCmd represents the chat command
@@ -24,38 +23,36 @@ var chatCmd = &cobra.Command{
 		util.Info("正在启动交互式对话模式...")
 
 		modelName, _ := cmd.Flags().GetString("model")
-		var client ai.AIClient
+		var client llm.ModelAdapter
+		var exists bool
 
 		if modelName != "" {
-			var exists bool
-			client, exists = aiManager.GetClient(modelName)
+			client, exists = llm.GetAdapter(modelName)
 			if !exists {
 				util.Error(fmt.Sprintf("指定的模型 '%s' 不存在或未正确配置。", modelName))
 				return
 			}
 			util.Infow("已切换到指定模型", map[string]any{"model": modelName})
 		} else {
-			client = aiManager.GetDefaultClient()
-			if client == nil {
-				util.Error("没有可用的AI客户端。请检查您的配置。")
-				return
+			// 从配置中获取默认模型
+			defaultModelName := config.Config.AI.DefaultModel
+			client, exists = llm.GetAdapter(defaultModelName)
+			if !exists {
+				// 如果默认模型不存在，则使用第一个可用的模型
+				adapters := llm.ListAdapters()
+				if len(adapters) == 0 {
+					util.Error("没有可用的AI适配器。请检查您的配置。")
+					return
+				}
+				defaultModelName = adapters[0]
+				client, _ = llm.GetAdapter(defaultModelName)
+				util.Warnw(fmt.Sprintf("默认模型不可用，回退到 %s", defaultModelName), nil)
 			}
 			util.Infow("使用默认模型", map[string]any{"model": client.GetModelInfo().Name})
 		}
 
-		// 使用全局的默认工具管理器
-		// 初始化工具管理器
-		toolManager, err := tools.NewToolManager()
-		if err != nil {
-			util.Errorw("工具管理器初始化失败", map[string]any{"error": err})
-			return
-		}
-
-		// 注册并初始化插件
-		plugins.RegisterPluginFactories(toolManager)
-		toolManager.InitializePlugins()
-
 		// 初始化MCP服务
+		// 全局的 toolManager 实例已在 root.go 中初始化
 		mcpService := mcp.NewMCPService(toolManager, "mcp_settings.json", 30*time.Second)
 		ctx := context.Background()
 
@@ -81,6 +78,8 @@ var chatCmd = &cobra.Command{
 			}
 		}
 
+		// 注意：RunSimpleLoop 现在可能需要调整以使用新的服务层
+		// 暂时保持不变，但假设它现在可以处理 ModelAdapter
 		chat.RunSimpleLoop(client, toolManager)
 
 		util.Info("对话模式已退出。")

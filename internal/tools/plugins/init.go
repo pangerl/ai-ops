@@ -2,13 +2,13 @@ package plugins
 
 import (
 	"ai-ops/internal/config"
-	"ai-ops/internal/pkg"
 	"ai-ops/internal/tools"
+	"ai-ops/internal/util"
 )
 
 // RegisterPluginFactories 注册所有插件的工厂函数
 func RegisterPluginFactories(tm tools.ToolManager) {
-	pkg.Debugw("开始注册所有插件工厂", nil)
+	util.Debugw("开始注册所有插件工厂", nil)
 
 	// 注册 EchoTool
 	tm.RegisterToolFactory("echo", NewEchoTool)
@@ -23,5 +23,5 @@ func RegisterPluginFactories(tm tools.ToolManager) {
 		tm.RegisterToolFactory("rag", NewRAGTool)
 	}
 
-	pkg.Debugw("所有插件工厂注册完成", nil)
+	util.Debugw("所有插件工厂注册完成", nil)
 }

@@ -1,9 +1,8 @@
 package llm
 
 import (
-	pkg "ai-ops/internal/pkg"
-	"ai-ops/internal/pkg/errors"
-	"ai-ops/internal/tools"
+	pkg "ai-ops/internal/util"
+	"ai-ops/internal/util/errors"
 	"context"
 	"sync"
 	"time"
@@ -25,6 +24,12 @@ type BaseAdapter struct {
 
 	// errorMapper 错误映射器
 	errorMapper ErrorMapper
+
+	// Healthy 健康状态
+	Healthy bool
+
+	// LastHealthCheck 上次健康检查时间
+	LastHealthCheck int64
 }
 
 // NewBaseAdapter 创建新的基础适配器
@@ -45,14 +50,19 @@ func (b *BaseAdapter) GetAdapterInfo() AdapterInfo {
 
 // HealthCheck 健康检查
 func (b *BaseAdapter) HealthCheck(ctx context.Context) error {
-	b.mu.RLock()
-	initialized := b.initialized
-	b.mu.RUnlock()
+	b.mu.Lock()
+	defer b.mu.Unlock()
 
-	if !initialized {
+	b.LastHealthCheck = time.Now().Unix()
+
+	if !b.initialized {
+		b.Healthy = false
 		return errors.NewError(errors.ErrCodeInvalidConfig, "adapter not initialized")
 	}
 
+	// 实际的健康检查逻辑应该由子类实现
+	// 这里我们假设如果已初始化，则为健康
+	b.Healthy = true
 	return nil
 }
 
@@ -138,64 +148,9 @@ func (b *BaseAdapter) RecordError(err error) {
 	}
 }
 
-// GetStatus 获取适配器状态
-func (b *BaseAdapter) GetStatus() AdapterStatus {
+// IsHealthy 返回适配器是否健康
+func (b *BaseAdapter) IsHealthy() bool {
 	b.mu.RLock()
 	defer b.mu.RUnlock()
-
-	return AdapterStatus{
-		Name:            b.info.Name,
-		Healthy:         b.initialized,
-		LastHealthCheck: time.Now().Unix(),
-		Metrics:         b.metrics,
-		LastError:       b.metrics.LastError,
-	}
-}
-
-// ClientAdapterWrapper 客户端适配器包装器，将现有的AIClient包装为ModelAdapter
-type ClientAdapterWrapper struct {
-	*BaseAdapter
-	client AIClient
-}
-
-// NewClientAdapterWrapper 创建新的客户端适配器包装器
-func NewClientAdapterWrapper(client AIClient, info AdapterInfo) *ClientAdapterWrapper {
-	w := &ClientAdapterWrapper{
-		BaseAdapter: NewBaseAdapter(info),
-		client:      client,
-	}
-	// 确保已初始化，避免健康检查失败；此处不做配置校验
-	_ = w.Initialize(context.Background(), nil)
-	return w
-}
-
-// SendMessage 发送消息并获取响应
-func (w *ClientAdapterWrapper) SendMessage(ctx context.Context, messages []Message, toolDefs []tools.ToolDefinition) (*Response, error) {
-	startTime := time.Now()
-
-	// 调用原始客户端
-	response, err := w.client.SendMessage(ctx, messages, toolDefs)
-
-	// 计算响应时间
-	responseTime := time.Since(startTime).Milliseconds()
-
-	// 更新指标
-	var tokensUsed int64
-	if response != nil {
-		tokensUsed = int64(response.Usage.TotalTokens)
-	}
-	w.UpdateMetrics(responseTime, err == nil, tokensUsed)
-
-	// 如果有错误，进行错误映射和记录
-	if err != nil {
-		w.RecordError(err)
-		err = w.MapError(err)
-	}
-
-	return response, err
-}
-
-// GetModelInfo 获取模型信息
-func (w *ClientAdapterWrapper) GetModelInfo() ModelInfo {
-	return w.client.GetModelInfo()
+	return b.Healthy
 }

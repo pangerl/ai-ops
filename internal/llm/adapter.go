@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"ai-ops/internal/tools"
 	"context"
 )
 
@@ -30,10 +31,13 @@ type AdapterInfo struct {
 	ConfigSchema    map[string]interface{} `json:"config_schema,omitempty"`
 }
 
-// ModelAdapter 适配器接口，扩展现有的 AIClient 接口
+// ModelAdapter 定义了与 LLM 交互的统一接口
 type ModelAdapter interface {
-	// 继承原有的 AIClient 接口，保持向后兼容性
-	AIClient
+	// SendMessage 发送消息并获取响应
+	SendMessage(ctx context.Context, messages []Message, toolDefs []tools.ToolDefinition) (*Response, error)
+
+	// GetModelInfo 获取模型信息
+	GetModelInfo() ModelInfo
 
 	// GetAdapterInfo 获取适配器信息
 	GetAdapterInfo() AdapterInfo
@@ -46,9 +50,6 @@ type ModelAdapter interface {
 
 	// GetMetrics 获取指标
 	GetMetrics() AdapterMetrics
-
-	// GetStatus 获取适配器状态
-	GetStatus() AdapterStatus
 }
 
 // AdapterFactory 适配器工厂函数类型
@@ -65,14 +66,4 @@ type AdapterMetrics struct {
 	LastRequestTime     int64  `json:"last_request_time"`
 	TokensUsed          int64  `json:"tokens_used"`
 	LastError           string `json:"last_error,omitempty"`
-}
-
-// AdapterStatus 适配器状态
-type AdapterStatus struct {
-	Name            string                 `json:"name"`
-	Healthy         bool                   `json:"healthy"`
-	LastHealthCheck int64                  `json:"last_health_check"`
-	Metrics         AdapterMetrics         `json:"metrics"`
-	Config          map[string]interface{} `json:"config,omitempty"`
-	LastError       string                 `json:"last_error,omitempty"`
 }
