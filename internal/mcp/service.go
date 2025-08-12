@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"ai-ops/internal/tools"
-	util "ai-ops/internal/util"
+	"ai-ops/internal/util"
 	"ai-ops/internal/util/errors"
 )
 

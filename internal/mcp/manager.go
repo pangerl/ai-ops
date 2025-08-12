@@ -9,7 +9,7 @@ import (
 	"sync"
 	"time"
 
-	pkg "ai-ops/internal/util"
+	"ai-ops/internal/util"
 	"ai-ops/internal/util/errors"
 
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -31,7 +31,7 @@ func NewMCPManager() MCPManager {
 
 // LoadSettings 加载MCP配置
 func (m *DefaultMCPManager) LoadSettings(configPath string) error {
-	pkg.Infow("加载MCP配置", map[string]any{
+	util.Infow("加载MCP配置", map[string]any{
 		"config_path": configPath,
 	})
 
@@ -55,7 +55,7 @@ func (m *DefaultMCPManager) LoadSettings(configPath string) error {
 	m.settings = &settings
 	m.mutex.Unlock()
 
-	pkg.Infow("MCP配置加载成功", map[string]any{
+	util.Infow("MCP配置加载成功", map[string]any{
 		"server_count": len(settings.MCPServers),
 	})
 
@@ -71,7 +71,7 @@ func (m *DefaultMCPManager) InitializeClients(ctx context.Context) error {
 		return errors.NewError(errors.ErrCodeMCPNotConfigured, "MCP配置未加载")
 	}
 
-	pkg.Infow("初始化MCP客户端", map[string]any{
+	util.Infow("初始化MCP客户端", map[string]any{
 		"server_count": len(m.settings.MCPServers),
 	})
 
@@ -84,7 +84,7 @@ func (m *DefaultMCPManager) InitializeClients(ctx context.Context) error {
 	// 初始化每个服务器的会话
 	for serverName, config := range m.settings.MCPServers {
 		if config.Disabled {
-			pkg.Infow("跳过已禁用的MCP服务器", map[string]any{
+			util.Infow("跳过已禁用的MCP服务器", map[string]any{
 				"server_name": serverName,
 			})
 			continue
@@ -128,7 +128,7 @@ func (m *DefaultMCPManager) InitializeClients(ctx context.Context) error {
 		m.sessions[serverName] = session
 	}
 
-	pkg.Infow("MCP客户端初始化完成", map[string]any{
+	util.Infow("MCP客户端初始化完成", map[string]any{
 		"connected_count": len(m.sessions),
 	})
 
@@ -162,7 +162,7 @@ func (m *DefaultMCPManager) Shutdown() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	pkg.Infow("关闭所有MCP客户端", map[string]any{
+	util.Infow("关闭所有MCP客户端", map[string]any{
 		"client_count": len(m.sessions),
 	})
 

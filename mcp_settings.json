@@ -8,6 +8,19 @@
       "args": [
         "mcp-server-fetch"
       ]
+    },
+    "go-server": {
+      "disabled": true,
+      "timeout": 60,
+      "type": "stdio",
+      "command": "go",
+      "args": [
+        "run",
+        "-C",
+        "/Users/lanpang/data/code/wsctl",
+        "main.go",
+        "mcp"
+      ]
     }
   }
 }
