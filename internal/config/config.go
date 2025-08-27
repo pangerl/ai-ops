@@ -216,26 +216,176 @@ func getEnvForModel(modelName, suffix string) string {
 
 // 验证配置
 func validateConfig(config *AppConfig) error {
+	// 验证AI配置
+	if err := validateAIConfig(&config.AI); err != nil {
+		return fmt.Errorf("AI配置验证失败: %w", err)
+	}
+
+	// 验证日志配置
+	if err := validateLoggingConfig(&config.Logging); err != nil {
+		return fmt.Errorf("日志配置验证失败: %w", err)
+	}
+
+	// 验证天气配置（可选，但如果配置了需要验证）
+	if config.Weather.ApiHost != "" || config.Weather.ApiKey != "" {
+		if err := validateWeatherConfig(&config.Weather); err != nil {
+			return fmt.Errorf("天气配置验证失败: %w", err)
+		}
+	}
+
+	// 验证RAG配置（如果启用）
+	if config.RAG.Enable {
+		if err := validateRAGConfig(&config.RAG); err != nil {
+			return fmt.Errorf("RAG配置验证失败: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// 验证AI配置
+func validateAIConfig(aiConfig *AIConfig) error {
 	// 验证默认模型是否存在
-	if config.AI.DefaultModel == "" {
+	if aiConfig.DefaultModel == "" {
 		return fmt.Errorf("默认AI模型未配置")
 	}
 
-	if _, exists := config.AI.Models[config.AI.DefaultModel]; !exists {
-		return fmt.Errorf("默认AI模型 '%s' 未在models中定义", config.AI.DefaultModel)
+	if _, exists := aiConfig.Models[aiConfig.DefaultModel]; !exists {
+		return fmt.Errorf("默认AI模型 '%s' 未在models中定义", aiConfig.DefaultModel)
 	}
 
+	// 验证超时配置
+	if aiConfig.Timeout < 0 || aiConfig.Timeout > 300 {
+		return fmt.Errorf("AI超时配置不合理: %d秒（应在0-300秒之间）", aiConfig.Timeout)
+	}
+
+	// 验证每个模型配置
+	for name, model := range aiConfig.Models {
+		if err := validateModelConfig(name, &model); err != nil {
+			return fmt.Errorf("模型 '%s' 配置验证失败: %w", name, err)
+		}
+	}
+
+	return nil
+}
+
+// 验证单个模型配置
+func validateModelConfig(name string, model *ModelConfig) error {
+	// 验证模型类型
+	validTypes := []string{"openai", "gemini"}
+	typeValid := false
+	for _, validType := range validTypes {
+		if model.Type == validType {
+			typeValid = true
+			break
+		}
+	}
+	if !typeValid {
+		return fmt.Errorf("不支持的模型类型: %s", model.Type)
+	}
+
+	// 验证API密钥（允许环境变量占位符）
+	if model.APIKey == "" || (model.APIKey != "" && !strings.HasPrefix(model.APIKey, "${") && len(model.APIKey) < 10) {
+		util.Warnw("模型API密钥可能无效", map[string]interface{}{
+			"model": name,
+		})
+	}
+
+	// 验证BaseURL格式（如果提供）
+	if model.BaseURL != "" && !strings.HasPrefix(model.BaseURL, "http") {
+		return fmt.Errorf("BaseURL格式不正确，必须以http或https开头: %s", model.BaseURL)
+	}
+
+	// 验证模型名称
+	if model.Model == "" {
+		return fmt.Errorf("模型配置'%s'的模型名称不能为空", name)
+	}
+
+	return nil
+}
+
+// 验证日志配置
+func validateLoggingConfig(logging *LoggingConfig) error {
 	// 验证日志级别
 	validLevels := []string{"debug", "info", "warn", "error"}
 	levelValid := false
 	for _, level := range validLevels {
-		if config.Logging.Level == level {
+		if logging.Level == level {
 			levelValid = true
 			break
 		}
 	}
 	if !levelValid {
-		return fmt.Errorf("无效的日志级别: %s", config.Logging.Level)
+		return fmt.Errorf("无效的日志级别: %s", logging.Level)
+	}
+
+	// 验证日志格式
+	validFormats := []string{"text", "json"}
+	formatValid := false
+	for _, format := range validFormats {
+		if logging.Format == format {
+			formatValid = true
+			break
+		}
+	}
+	if !formatValid {
+		return fmt.Errorf("无效的日志格式: %s", logging.Format)
+	}
+
+	// 验证日志输出
+	validOutputs := []string{"stdout", "stderr", "file"}
+	outputValid := false
+	for _, output := range validOutputs {
+		if logging.Output == output {
+			outputValid = true
+			break
+		}
+	}
+	if !outputValid {
+		return fmt.Errorf("无效的日志输出: %s", logging.Output)
+	}
+
+	// 如果输出到文件，验证文件路径
+	if logging.Output == "file" && logging.File == "" {
+		return fmt.Errorf("日志输出设置为文件但未指定文件路径")
+	}
+
+	return nil
+}
+
+// 验证天气配置
+func validateWeatherConfig(weather *WeatherConfig) error {
+	if weather.ApiHost == "" {
+		return fmt.Errorf("天气API主机未配置")
+	}
+
+	if !strings.HasPrefix(weather.ApiHost, "http") {
+		return fmt.Errorf("天气API主机格式不正确: %s", weather.ApiHost)
+	}
+
+	if weather.ApiKey == "" || (weather.ApiKey != "" && !strings.HasPrefix(weather.ApiKey, "${") && len(weather.ApiKey) < 10) {
+		util.Warnw("天气API密钥可能无效", nil)
+	}
+
+	return nil
+}
+
+// 验证RAG配置
+func validateRAGConfig(rag *RAGConfig) error {
+	if rag.ApiHost == "" {
+		return fmt.Errorf("RAG API主机未配置")
+	}
+
+	if !strings.HasPrefix(rag.ApiHost, "http") {
+		return fmt.Errorf("RAG API主机格式不正确: %s", rag.ApiHost)
+	}
+
+	if rag.RetrievalK <= 0 || rag.RetrievalK > 100 {
+		return fmt.Errorf("RAG检索数量配置不合理: %d（应在1-100之间）", rag.RetrievalK)
+	}
+
+	if rag.TopK <= 0 || rag.TopK > rag.RetrievalK {
+		return fmt.Errorf("RAG顶部结果数量配置不合理: %d（应在1-%d之间）", rag.TopK, rag.RetrievalK)
 	}
 
 	return nil

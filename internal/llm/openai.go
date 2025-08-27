@@ -152,7 +152,7 @@ func createOpenAIClient(modelCfg cfg.ModelConfig) (*OpenAIClient, error) {
 
 	// 初始化适配器
 	if err := client.Initialize(context.Background(), modelCfg); err != nil {
-		return nil, errors.WrapError(errors.ErrCodeClientCreationFailed, "failed to initialize OpenAI adapter", err)
+		return nil, errors.WrapError(errors.ErrCodeClientCreationFailed, "初始化OpenAI适配器失败", err)
 	}
 	// 默认启用提供商特定错误映射，便于统一错误语义
 	client.SetErrorMapper(CreateErrorMapperForProvider("openai"))
@@ -260,6 +260,14 @@ func (c *OpenAIClient) HealthCheck(ctx context.Context) error {
 	return nil
 }
 
+// Close 关闭适配器并清理资源
+func (c *OpenAIClient) Close() error {
+	// OpenAI 适配器主要使用 HTTP 客户端，无需特殊清理
+	// 如果将来有持久连接或其他资源，可以在此处清理
+	util.Debug("OpenAI 适配器已关闭")
+	return nil
+}
+
 // buildRequest 构建 OpenAI API 请求
 func (c *OpenAIClient) buildRequest(messages []Message, toolDefs []tools.ToolDefinition) *OpenAIRequest {
 	openaiMessages := make([]OpenAIMessage, len(messages))
@@ -353,7 +361,7 @@ func (c *OpenAIClient) parseResponse(response *OpenAIResponse) (*Response, error
 			if toolCall.Type == "function" {
 				var args map[string]interface{}
 				if err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args); err != nil {
-					return nil, errors.WrapError(errors.ErrCodeInvalidResponse, "failed to parse tool call arguments", err)
+					return nil, errors.WrapError(errors.ErrCodeInvalidResponse, "解析工具调用参数失败", err)
 				}
 
 				result.ToolCalls = append(result.ToolCalls, ToolCall{

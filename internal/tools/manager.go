@@ -52,12 +52,12 @@ func NewToolManager() (ToolManager, error) {
 	regService := util.GetRegistryService()
 	instance, exists := regService.Get(ToolRegistryKey)
 	if !exists {
-		return nil, fmt.Errorf("tool registry with key '%s' not found in central service", ToolRegistryKey)
+		return nil, fmt.Errorf("在中央服务中未找到键为'%s'的工具注册表", ToolRegistryKey)
 	}
 
 	reg, ok := instance.(registry.Registry[Tool])
 	if !ok {
-		return nil, fmt.Errorf("invalid type for tool registry in central service")
+		return nil, fmt.Errorf("中央服务中工具注册表的类型无效")
 	}
 
 	return &DefaultToolManager{
@@ -67,15 +67,16 @@ func NewToolManager() (ToolManager, error) {
 }
 
 // InitRegistry 初始化工具注册表并将其注册到中央服务
-func InitRegistry() {
+func InitRegistry() error {
 	regService := util.GetRegistryService()
 	if _, exists := regService.Get(ToolRegistryKey); !exists {
 		reg := registry.NewRegistry[Tool]()
 		err := regService.Register(ToolRegistryKey, reg)
 		if err != nil {
-			panic(fmt.Sprintf("failed to register tool registry: %v", err))
+			return fmt.Errorf("注册工具注册表失败: %v", err)
 		}
 	}
+	return nil
 }
 
 // RegisterTool 注册工具

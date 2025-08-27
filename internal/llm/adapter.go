@@ -50,6 +50,9 @@ type ModelAdapter interface {
 
 	// GetMetrics 获取指标
 	GetMetrics() AdapterMetrics
+
+	// Close 关闭适配器并清理资源
+	Close() error
 }
 
 // AdapterFactory 适配器工厂函数类型

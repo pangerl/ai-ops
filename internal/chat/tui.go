@@ -52,7 +52,7 @@ func NewTUI(client ai.ModelAdapter, toolManager tools.ToolManager) (*TUI, error)
 		EOFPrompt:       "exit",
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to create readline instance: %w", err)
+		return nil, fmt.Errorf("创建读取行实例失败: %w", err)
 	}
 
 	renderer, err := glamour.NewTermRenderer(
@@ -60,7 +60,7 @@ func NewTUI(client ai.ModelAdapter, toolManager tools.ToolManager) (*TUI, error)
 		glamour.WithWordWrap(120),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create markdown renderer: %w", err)
+		return nil, fmt.Errorf("创建Markdown渲染器失败: %w", err)
 	}
 
 	return &TUI{

@@ -122,7 +122,7 @@ func createGeminiClient(modelCfg cfg.ModelConfig) (*GeminiClient, error) {
 
 	// 初始化适配器
 	if err := client.Initialize(context.Background(), modelCfg); err != nil {
-		return nil, errors.WrapError(errors.ErrCodeClientCreationFailed, "failed to initialize Gemini adapter", err)
+		return nil, errors.WrapError(errors.ErrCodeClientCreationFailed, "初始化Gemini适配器失败", err)
 	}
 
 	// 默认启用提供商特定错误映射
@@ -349,6 +349,14 @@ func (c *GeminiClient) parseResponse(response *GeminiResponse) (*Response, error
 	}
 
 	return result, nil
+}
+
+// Close 关闭适配器并清理资源
+func (c *GeminiClient) Close() error {
+	// Gemini 适配器主要使用 HTTP 客户端，无需特殊清理
+	// 如果将来有持久连接或其他资源，可以在此处清理
+	util.Debug("Gemini 适配器已关闭")
+	return nil
 }
 
 // Gemini API 数据结构

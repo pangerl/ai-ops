@@ -44,7 +44,7 @@ func (s *Session) ProcessMessage(ctx context.Context, userInput string) (string,
 		if err != nil {
 			// 如果出错，从历史中移除最后一条消息，以备重试
 			s.messages = s.messages[:len(s.messages)-1]
-			return "", fmt.Errorf("failed to send message to AI: %w", err)
+			return "", fmt.Errorf("发送消息到AI失败: %w", err)
 		}
 
 		// 调试：打印完整的 AI 响应
@@ -64,7 +64,7 @@ func (s *Session) ProcessMessage(ctx context.Context, userInput string) (string,
 			// 需要调用工具
 			toolResults, err := s.executeTools(ctx, resp.ToolCalls)
 			if err != nil {
-				return "", fmt.Errorf("failed to execute tools: %w", err)
+				return "", fmt.Errorf("执行工具失败: %w", err)
 			}
 			// 将工具结果添加到历史记录中，然后继续循环
 			s.messages = append(s.messages, toolResults...)

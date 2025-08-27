@@ -5,6 +5,7 @@ import (
 	"ai-ops/internal/util/errors"
 	"ai-ops/pkg/registry"
 	"fmt"
+	"sync"
 	"time"
 )
 
@@ -44,12 +45,16 @@ func (a *AdapterItem) Type() string {
 // --- 全局注册表实例 ---
 var (
 	llmRegistry registry.Registry[*AdapterItem]
+	llmMutex    sync.RWMutex
 )
 
 // InitRegistry 初始化LLM注册表
-func InitRegistry() {
+func InitRegistry() error {
+	llmMutex.Lock()
+	defer llmMutex.Unlock()
+	
 	if llmRegistry != nil {
-		return // 已经初始化
+		return nil // 已经初始化
 	}
 	regService := util.GetRegistryService()
 	reg := registry.NewRegistry[*AdapterItem]()
@@ -57,18 +62,27 @@ func InitRegistry() {
 	if err != nil {
 		// 如果注册失败（例如，键已存在），则尝试获取现有实例
 		if instance, ok := regService.Get(LLMRegistryKey); ok {
-			llmRegistry = instance.(registry.Registry[*AdapterItem])
+			if registry, ok := instance.(registry.Registry[*AdapterItem]); ok {
+				llmRegistry = registry
+				return nil
+			} else {
+				return fmt.Errorf("LLM注册表类型断言失败")
+			}
 		} else {
 			// 这是一个严重错误，表示注册服务状态不一致
-			panic(fmt.Sprintf("failed to initialize or get LLM registry: %v", err))
+			return fmt.Errorf("初始化或获取LLM注册表失败: %v", err)
 		}
 	} else {
 		llmRegistry = reg
 	}
+	return nil
 }
 
 // getRegistry 获取LLM注册表实例
 func getRegistry() (registry.Registry[*AdapterItem], error) {
+	llmMutex.RLock()
+	defer llmMutex.RUnlock()
+	
 	if llmRegistry == nil {
 		return nil, errors.NewError(errors.ErrCodeInternalErr, "LLM registry not initialized")
 	}
@@ -121,7 +135,7 @@ func RegisterConfigValidator(adapterType string, validator ConfigValidator) erro
 		item.validator = validator
 		item.updatedAt = time.Now()
 		if !reg.Update(item) {
-			return errors.NewError(errors.ErrCodeInternalErr, "failed to update adapter validator")
+			return errors.NewError(errors.ErrCodeInternalErr, "更新适配器验证器失败")
 		}
 	} else {
 		// 如果工厂不存在，也允许注册验证器，以便后续使用
@@ -179,7 +193,7 @@ func CreateAdapter(name, adapterType string, config interface{}) (ModelAdapter, 
 	}
 
 	if err := reg.Register(item); err != nil {
-		return nil, errors.WrapError(errors.ErrCodeInternalErr, "failed to register adapter instance", err)
+		return nil, errors.WrapError(errors.ErrCodeInternalErr, fmt.Sprintf("注册适配器实例失败，名称: %s", name), err)
 	}
 
 	return adapter, nil
@@ -205,7 +219,7 @@ func RemoveAdapter(name string) error {
 		return err
 	}
 	if !reg.Remove(name) {
-		return errors.NewError(errors.ErrCodeClientNotFound, fmt.Sprintf("adapter not found: %s", name))
+		return errors.NewError(errors.ErrCodeClientNotFound, fmt.Sprintf("未找到适配器: %s", name))
 	}
 	return nil
 }

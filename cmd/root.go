@@ -86,7 +86,9 @@ func initializeApp() error {
 	})
 
 	// 5. 初始化所有注册表并注册提供者
-	initializeRegistries()
+	if err := initializeRegistries(); err != nil {
+		return errors.WrapError(errors.ErrCodeInitializationFailed, "注册表初始化失败", err)
+	}
 
 	// 6. 初始化 AI 客户端管理器
 	if err := initializeAIClients(); err != nil {
@@ -102,15 +104,22 @@ func initializeApp() error {
 }
 
 // initializeRegistries 初始化所有注册表
-func initializeRegistries() {
+func initializeRegistries() error {
 	// 初始化LLM注册表
-	llm.InitRegistry()
+	if err := llm.InitRegistry(); err != nil {
+		return errors.WrapError(errors.ErrCodeInitializationFailed, "LLM注册表初始化失败", err)
+	}
 	// 显式注册所有 LLM 提供者
-	RegisterLLMProviders()
+	if err := RegisterLLMProviders(); err != nil {
+		return errors.WrapError(errors.ErrCodeInitializationFailed, "LLM 提供者注册失败", err)
+	}
 
 	// 初始化工具注册表
-	tools.InitRegistry()
+	if err := tools.InitRegistry(); err != nil {
+		return errors.WrapError(errors.ErrCodeInitializationFailed, "工具注册表初始化失败", err)
+	}
 	util.Info("所有注册表和提供者初始化完成")
+	return nil
 }
 
 // initializeTools 初始化工具管理器和插件
