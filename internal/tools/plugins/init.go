@@ -23,5 +23,8 @@ func RegisterPluginFactories(tm tools.ToolManager) {
 		tm.RegisterToolFactory("rag", NewRAGTool)
 	}
 
+	// 注册系统信息工具
+	tm.RegisterToolFactory("sysinfo", NewSysInfoTool)
+
 	util.Debugw("所有插件工厂注册完成", nil)
 }
