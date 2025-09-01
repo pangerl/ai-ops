@@ -107,19 +107,19 @@ func (c *AIHTTPClient) Post(ctx context.Context, endpoint string, payload interf
 		}
 	}
 	// body 预览限长，避免泄露与过大日志
-	var bodyPreview string
-	if len(jsonData) > 0 {
-		const maxLogBody = 1024
-		if len(jsonData) > maxLogBody {
-			bodyPreview = string(jsonData[:maxLogBody]) + "...(truncated)"
-		} else {
-			bodyPreview = string(jsonData)
-		}
-	}
+	// var bodyPreview string
+	// if len(jsonData) > 0 {
+	// 	const maxLogBody = 1024
+	// 	if len(jsonData) > maxLogBody {
+	// 		bodyPreview = string(jsonData[:maxLogBody]) + "...(truncated)"
+	// 	} else {
+	// 		bodyPreview = string(jsonData)
+	// 	}
+	// }
 	util.Debugw("发送 HTTP POST 请求", map[string]interface{}{
 		"url":          url,
 		"headers":      headersMap,
-		"body_preview": bodyPreview,
+		"body_preview": string(jsonData),
 		"body_len":     len(jsonData),
 	})
 

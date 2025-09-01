@@ -33,3 +33,4 @@ go.work.sum
 local-config.toml
 ai-ops
 .DS_Store
+.docs/

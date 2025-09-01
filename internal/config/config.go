@@ -20,6 +20,7 @@ type AppConfig struct {
 	Logging LoggingConfig `toml:"logging"`
 	Weather WeatherConfig `toml:"weather"`
 	RAG     RAGConfig     `toml:"rag"`
+	Tools   ToolsConfig   `toml:"tools"`
 }
 
 // AI配置
@@ -58,6 +59,13 @@ type RAGConfig struct {
 	ApiHost    string `toml:"api_host"`
 	RetrievalK int    `toml:"retrieval_k"`
 	TopK       int    `toml:"top_k"`
+}
+
+// 工具配置
+type ToolsConfig struct {
+	Echo    bool `toml:"echo"`    // Echo工具（调试用）
+	Weather bool `toml:"weather"` // 天气工具
+	RAG     bool `toml:"rag"`     // RAG工具
 }
 
 // 加载配置文件
@@ -152,6 +160,12 @@ api_key = "${QWEATHER_API_KEY}"
 api_host = "http://localhost:8000"
 retrieval_k = 15
 top_k = 5
+
+[tools]
+# 工具启用配置（sysinfo 为核心工具，始终启用）
+echo = false     # Echo工具（调试用）
+weather = false  # 天气工具（需要配置 QWEATHER_API_KEY）
+rag = false      # RAG工具（需要启动RAG服务）
 `
 
 	return os.WriteFile(configPath, []byte(defaultConfig), 0644)

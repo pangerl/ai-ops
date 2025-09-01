@@ -8,23 +8,40 @@ import (
 
 // RegisterPluginFactories 注册所有插件的工厂函数
 func RegisterPluginFactories(tm tools.ToolManager) {
-	util.Debugw("开始注册所有插件工厂", nil)
+	util.Debugw("开始注册插件工厂", nil)
 
-	// 注册 EchoTool
-	tm.RegisterToolFactory("echo", NewEchoTool)
+	// 核心工具：sysinfo - 无条件注册
+	tm.RegisterToolFactory("sysinfo", NewSysInfoTool)
+	util.Debugw("核心工具注册完成", map[string]any{
+		"tool": "sysinfo",
+	})
 
-	// 注册 WeatherTool
-	// 注意：这里可以添加配置检查，例如，如果缺少API密钥则不注册
-	tm.RegisterToolFactory("weather", NewWeatherTool)
-
-	// 注册 RAGTool
-	// 注意：这里可以添加配置检查，例如，如果RAG未启用则不注册
-	if config.GetConfig().RAG.Enable {
-		tm.RegisterToolFactory("rag", NewRAGTool)
+	// 可选工具：根据配置决定是否注册
+	cfg := config.GetConfig()
+	
+	// Echo工具 - 调试用途，根据配置启用
+	if cfg.Tools.Echo {
+		tm.RegisterToolFactory("echo", NewEchoTool)
+		util.Debugw("可选工具注册", map[string]any{
+			"tool": "echo",
+		})
 	}
 
-	// 注册系统信息工具
-	tm.RegisterToolFactory("sysinfo", NewSysInfoTool)
+	// Weather工具 - 需要API密钥，根据配置启用
+	if cfg.Tools.Weather {
+		tm.RegisterToolFactory("weather", NewWeatherTool)
+		util.Debugw("可选工具注册", map[string]any{
+			"tool": "weather",
+		})
+	}
 
-	util.Debugw("所有插件工厂注册完成", nil)
+	// RAG工具 - 需要RAG服务，根据配置启用
+	if cfg.Tools.RAG {
+		tm.RegisterToolFactory("rag", NewRAGTool)
+		util.Debugw("可选工具注册", map[string]any{
+			"tool": "rag",
+		})
+	}
+
+	util.Debugw("插件工厂注册完成", nil)
 }
