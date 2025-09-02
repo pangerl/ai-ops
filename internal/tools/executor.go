@@ -33,7 +33,7 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 		// 创建带超时的上下文
 		timeoutCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutMs)*time.Millisecond)
 
-		util.Infow("开始工具执行（尝试）", map[string]any{
+		util.Debugw("开始工具执行（尝试）", map[string]any{
 			"tool_name":  call.Name,
 			"call_id":    call.ID,
 			"attempt":    i + 1,
@@ -80,7 +80,7 @@ func (e *ToolCallExecutor) ExecuteWithRetryAndTimeout(ctx context.Context, call 
 
 		// 执行成功，释放本轮上下文资源并返回结果
 		cancel()
-		util.Infow("工具执行成功", map[string]any{
+		util.Debugw("工具执行成功", map[string]any{
 			"tool_name":     call.Name,
 			"call_id":       call.ID,
 			"result_length": len(result),

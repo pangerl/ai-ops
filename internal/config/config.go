@@ -41,10 +41,7 @@ type ModelConfig struct {
 
 // 日志配置
 type LoggingConfig struct {
-	Level  string `toml:"level"`  // debug, info, warn, error
-	Format string `toml:"format"` // json, text
-	Output string `toml:"output"` // stdout, stderr, file
-	File   string `toml:"file"`   // 日志文件路径
+	Level string `toml:"level"` // debug, info, warn, error
 }
 
 // 天气配置
@@ -137,26 +134,30 @@ timeout = 30
 [ai.models.gemini]
 type = "gemini"
 api_key = "${GEMINI_API_KEY}"
-base_url = "https://generativelanguage.googleapis.com"
-model = "gemini-pro"
+base_url = "https://generativelanguage.googleapis.com/v1beta"
+model = "gemini-2.5-flash"
 
 [ai.models.openai]
 type = "openai"
 api_key = "${OPENAI_API_KEY}"
-base_url = "https://api.openai.com"
-model = "gpt-3.5-turbo"
+base_url = "https://api.openai.com/v1/chat/completions"
+model = "gpt-4o-mini"
+
+[ai.models.glm]
+type = "openai"
+api_key = "${GLM_API_KEY}"
+base_url = "https://open.bigmodel.cn/api/paas/v4"
+model = "glm-4.5"
 
 [logging]
-level = "info"
-format = "text"
-output = "stdout"
-file = ""
+level = "warn"
 
 [weather]
 api_host = "https://devapi.qweather.com"
 api_key = "${QWEATHER_API_KEY}"
 
 [rag]
+enable = false  # 是否启用 RAG 工具，无知识库时可设为 false
 api_host = "http://localhost:8000"
 retrieval_k = 15
 top_k = 5
@@ -199,15 +200,6 @@ func overrideWithEnv(config *AppConfig) {
 	// 日志配置
 	if level := os.Getenv("LOG_LEVEL"); level != "" {
 		config.Logging.Level = level
-	}
-	if format := os.Getenv("LOG_FORMAT"); format != "" {
-		config.Logging.Format = format
-	}
-	if output := os.Getenv("LOG_OUTPUT"); output != "" {
-		config.Logging.Output = output
-	}
-	if file := os.Getenv("LOG_FILE"); file != "" {
-		config.Logging.File = file
 	}
 }
 
@@ -322,49 +314,12 @@ func validateModelConfig(name string, model *ModelConfig) error {
 func validateLoggingConfig(logging *LoggingConfig) error {
 	// 验证日志级别
 	validLevels := []string{"debug", "info", "warn", "error"}
-	levelValid := false
 	for _, level := range validLevels {
 		if logging.Level == level {
-			levelValid = true
-			break
+			return nil
 		}
 	}
-	if !levelValid {
-		return fmt.Errorf("无效的日志级别: %s", logging.Level)
-	}
-
-	// 验证日志格式
-	validFormats := []string{"text", "json"}
-	formatValid := false
-	for _, format := range validFormats {
-		if logging.Format == format {
-			formatValid = true
-			break
-		}
-	}
-	if !formatValid {
-		return fmt.Errorf("无效的日志格式: %s", logging.Format)
-	}
-
-	// 验证日志输出
-	validOutputs := []string{"stdout", "stderr", "file"}
-	outputValid := false
-	for _, output := range validOutputs {
-		if logging.Output == output {
-			outputValid = true
-			break
-		}
-	}
-	if !outputValid {
-		return fmt.Errorf("无效的日志输出: %s", logging.Output)
-	}
-
-	// 如果输出到文件，验证文件路径
-	if logging.Output == "file" && logging.File == "" {
-		return fmt.Errorf("日志输出设置为文件但未指定文件路径")
-	}
-
-	return nil
+	return fmt.Errorf("无效的日志级别: %s（支持: debug, info, warn, error）", logging.Level)
 }
 
 // 验证天气配置

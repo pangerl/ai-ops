@@ -4,11 +4,18 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"ai-ops/internal/llm"
 	"ai-ops/internal/tools"
 	"ai-ops/internal/util"
 )
+
+// SessionConfig 会话配置
+type SessionConfig struct {
+	Mode         string // "chat" 或 "agent"
+	ShowThinking bool   // 是否显示思考过程
+}
 
 // Session 管理一个独立的对话会话
 type Session struct {
@@ -16,18 +23,31 @@ type Session struct {
 	toolManager tools.ToolManager
 	messages    []llm.Message
 	toolDefs    []tools.ToolDefinition
+	config      SessionConfig
 	maxHistory  int // 最大历史记录条数
 }
 
 // NewSession 创建一个新的对话会话
-func NewSession(client llm.ModelAdapter, toolManager tools.ToolManager) *Session {
-	return &Session{
+func NewSession(client llm.ModelAdapter, toolManager tools.ToolManager, config SessionConfig) *Session {
+	session := &Session{
 		client:      client,
 		toolManager: toolManager,
 		messages:    make([]llm.Message, 0),
 		toolDefs:    toolManager.GetToolDefinitions(),
+		config:      config,
 		maxHistory:  10, // 默认保留最近10条消息
 	}
+
+	// 根据模式设置系统提示词
+	systemPrompt := session.getSystemPrompt()
+	if systemPrompt != "" {
+		session.messages = append(session.messages, llm.Message{
+			Role:    "system",
+			Content: systemPrompt,
+		})
+	}
+
+	return session
 }
 
 // ProcessMessage 处理用户输入并返回最终的 AI 响应
@@ -49,7 +69,7 @@ func (s *Session) ProcessMessage(ctx context.Context, userInput string) (string,
 
 		// 调试：打印完整的 AI 响应
 		respBytes, _ := json.Marshal(resp)
-		util.Infow("收到 AI 响应", map[string]any{"response": string(respBytes)})
+		util.Debugw("收到 AI 响应", map[string]any{"response": string(respBytes)})
 
 		// 将 AI 的响应（不含工具调用）添加到历史记录
 		aiResponseMsg := llm.Message{
@@ -134,7 +154,7 @@ func (s *Session) consolidateHistory(roundStartIndex int) {
 	newMessages = append(newMessages, finalAssistantMessage)
 
 	s.messages = newMessages
-	util.Infow("历史记录已整合", map[string]any{"history_size": len(s.messages)})
+	util.Debugw("历史记录已整合", map[string]any{"history_size": len(s.messages)})
 }
 
 // executeTools 执行工具调用并返回结果消息
@@ -173,4 +193,169 @@ func (s *Session) executeTools(ctx context.Context, toolCalls []llm.ToolCall) ([
 	}
 
 	return toolMessages, nil
+}
+
+// getSystemPrompt 根据模式生成系统提示词
+func (s *Session) getSystemPrompt() string {
+	toolDescriptions := s.buildToolDescriptions()
+
+	switch s.config.Mode {
+	case "agent":
+		return s.getAgentSystemPrompt(toolDescriptions)
+	default: // "chat"
+		return s.getChatSystemPrompt(toolDescriptions)
+	}
+}
+
+// buildToolDescriptions 构建工具描述
+func (s *Session) buildToolDescriptions() string {
+	var descriptions []string
+	for _, tool := range s.toolDefs {
+		descriptions = append(descriptions, fmt.Sprintf("- %s: %s", tool.Name, tool.Description))
+	}
+	return strings.Join(descriptions, "\n")
+}
+
+// getChatSystemPrompt 普通对话模式的系统提示词
+func (s *Session) getChatSystemPrompt(toolDescriptions string) string {
+	thinkingPrompt := ""
+	if s.config.ShowThinking {
+		thinkingPrompt = `
+
+重要：你必须在每次回答时都展示思考过程。请严格按照以下格式：
+
+**思考过程开始**
+1. 问题分析：用户问的是...
+2. 思考方向：我需要考虑...
+3. 解决方案：我的回答策略是...
+**思考过程结束**
+
+然后给出清晰的正式回答。`
+	}
+
+	return fmt.Sprintf(`你是一个智能的AI助手，专注于帮助用户解决问题和提供信息。
+
+可用工具:
+%s
+
+工作特点:
+- 友好、耐心、准确地回答用户问题
+- 主动使用工具获取实时信息和执行操作
+- 提供清晰、结构化的回答
+- 在需要时展示思考过程
+
+回答风格:
+- 简洁明了，直接回答用户问题
+- 适当使用markdown格式提升可读性
+- 必要时提供代码示例和解决方案
+- 如果需要思考，可以说明推理过程%s`, toolDescriptions, thinkingPrompt)
+}
+
+// getAgentSystemPrompt 智能体模式的系统提示词
+func (s *Session) getAgentSystemPrompt(toolDescriptions string) string {
+	thinkingPrompt := ""
+	if s.config.ShowThinking {
+		thinkingPrompt = `
+
+重要：你必须在每次回答时都展示思考过程。请严格按照以下格式：
+
+**思考过程开始**
+1. 任务理解：用户想要...
+2. 分析过程：需要调用什么工具...
+3. 执行计划：具体步骤...
+4. 结果分析：工具返回了什么...
+**思考过程结束**
+
+然后给出用户友好的正式回答。`
+	}
+
+	return fmt.Sprintf(`你是一个自主的智能体，能够分析复杂任务并制定执行计划。
+
+可用工具:
+%s
+
+工作模式:
+1. 任务分析: 理解用户需求，识别关键要素
+2. 计划制定: 将复杂任务分解为可执行的步骤
+3. 自主执行: 主动调用工具，收集信息，执行操作
+4. 结果整合: 综合各步骤结果，提供完整解决方案
+
+执行特点:
+- 具备强烈的目标导向性
+- 主动探索和尝试不同方法
+- 在遇到障碍时自主调整策略
+- 持续优化执行效率
+- 详细记录执行过程和思考逻辑
+
+输出要求:
+- 清晰说明每个步骤的目的和方法
+- 展示完整的问题解决过程
+- 提供可操作的建议和下一步行动%s`, toolDescriptions, thinkingPrompt)
+}
+
+// ThinkingContent 思考内容结构
+type ThinkingContent struct {
+	Thinking string // 思考过程
+	Content  string // 正式回答
+}
+
+// ExtractThinking 从响应中提取思考内容
+func ExtractThinking(response string) ThinkingContent {
+	const (
+		thinkingStart = "**思考过程开始**"
+		thinkingEnd   = "**思考过程结束**"
+	)
+
+	startIdx := strings.Index(response, thinkingStart)
+	if startIdx == -1 {
+		// 没有思考标记，返回原内容
+		return ThinkingContent{
+			Thinking: "",
+			Content:  response,
+		}
+	}
+
+	endIdx := strings.Index(response, thinkingEnd)
+	if endIdx == -1 {
+		// 只有开始标记，没有结束标记
+		return ThinkingContent{
+			Thinking: "",
+			Content:  response,
+		}
+	}
+
+	// 提取思考内容
+	thinkingStartIdx := startIdx + len(thinkingStart)
+	thinking := strings.TrimSpace(response[thinkingStartIdx:endIdx])
+
+	// 提取正式内容（移除思考部分）
+	before := response[:startIdx]
+	after := response[endIdx+len(thinkingEnd):]
+	content := strings.TrimSpace(before + after)
+
+	return ThinkingContent{
+		Thinking: thinking,
+		Content:  content,
+	}
+}
+
+// RemoveThinking 移除响应中的思考标记和内容
+func RemoveThinking(response string) string {
+	thinking := ExtractThinking(response)
+	return thinking.Content
+}
+
+// SetConfig 设置会话配置（用于调试）
+func (s *Session) SetConfig(config SessionConfig) {
+	s.config = config
+}
+
+// SetToolDefs 设置工具定义（用于调试）
+func (s *Session) SetToolDefs(toolDefs []tools.ToolDefinition) {
+	s.toolDefs = toolDefs
+}
+
+// GetSystemPromptForDebug 获取系统提示词（用于调试）
+func (s *Session) GetSystemPromptForDebug() string {
+	return s.getSystemPrompt()
 }

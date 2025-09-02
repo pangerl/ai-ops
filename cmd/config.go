@@ -41,7 +41,5 @@ func showConfig() {
 		if modelConfig, exists := config.Config.AI.Models[config.Config.AI.DefaultModel]; exists {
 			fmt.Printf("  API密钥已配置: %t\n", modelConfig.APIKey != "")
 		}
-		fmt.Printf("  日志格式: %s\n", config.Config.Logging.Format)
-		fmt.Printf("  日志输出: %s\n", config.Config.Logging.Output)
 	}
 }

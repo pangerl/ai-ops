@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -18,41 +17,37 @@ import (
 var chatCmd = &cobra.Command{
 	Use:   "chat",
 	Short: "启动交互式对话模式",
-	Long:  "启动与AI助手的交互式对话，支持工具调用和上下文管理",
+	Long: `启动与AI助手的交互式对话。
+
+模式说明:
+  普通模式: 友好的AI助手，专注问答和代码协助
+  智能体模式: 自主规划任务，适合复杂运维场景
+
+使用示例:
+  ai-ops chat              # 普通对话模式
+  ai-ops chat -a           # 智能体模式
+  ai-ops chat -a -t        # 智能体模式 + 显示思考过程`,
 	Run: func(cmd *cobra.Command, args []string) {
 		util.Info("正在启动交互式对话模式...")
 
-		modelName, _ := cmd.Flags().GetString("model")
-		var client llm.ModelAdapter
-		var exists bool
+		// 获取默认模型
+		client := getDefaultClient()
+		if client == nil {
+			util.Error("没有可用的AI模型配置，请检查config.toml")
+			return
+		}
 
-		if modelName != "" {
-			client, exists = llm.GetAdapter(modelName)
-			if !exists {
-				util.Error(fmt.Sprintf("指定的模型 '%s' 不存在或未正确配置。", modelName))
-				return
-			}
-			util.Infow("已切换到指定模型", map[string]any{"model": modelName})
-		} else {
-			// 从配置中获取默认模型
-			defaultModelName := config.Config.AI.DefaultModel
-			client, exists = llm.GetAdapter(defaultModelName)
-			if !exists {
-				// 如果默认模型不存在，则使用第一个可用的模型
-				adapters := llm.ListAdapters()
-				if len(adapters) == 0 {
-					util.Error("没有可用的AI适配器。请检查您的配置。")
-					return
-				}
-				defaultModelName = adapters[0]
-				client, _ = llm.GetAdapter(defaultModelName)
-				util.Warnw(fmt.Sprintf("默认模型不可用，回退到 %s", defaultModelName), nil)
-			}
-			util.Infow("使用默认模型", map[string]any{"model": client.GetModelInfo().Name})
+		// 解析参数
+		isAgent, _ := cmd.Flags().GetBool("agent")
+		showThinking, _ := cmd.Flags().GetBool("think")
+
+		// 创建会话配置
+		sessionConfig := chat.SessionConfig{
+			Mode:         getMode(isAgent),
+			ShowThinking: showThinking,
 		}
 
 		// 初始化MCP服务
-		// 全局的 toolManager 实例已在 root.go 中初始化
 		mcpService := mcp.NewMCPService(toolManager, "mcp_settings.json", 30*time.Second)
 		ctx := context.Background()
 
@@ -72,23 +67,46 @@ var chatCmd = &cobra.Command{
 
 			connectedServers := mcpService.GetConnectedServers()
 			if len(connectedServers) > 0 {
-				util.Infow("MCP服务初始化成功", map[string]any{
+				util.Debugw("MCP服务初始化成功", map[string]any{
 					"connected_servers": connectedServers,
 				})
 			}
 		}
 
-		// 注意：RunSimpleLoop 现在可能需要调整以使用新的服务层
-		// 暂时保持不变，但假设它现在可以处理 ModelAdapter
-		chat.RunSimpleLoop(client, toolManager)
+		// 启动对话
+		chat.RunChat(client, toolManager, sessionConfig)
 
 		util.Info("对话模式已退出。")
 	},
 }
 
+// getDefaultClient 获取默认配置的AI客户端
+func getDefaultClient() llm.ModelAdapter {
+	defaultModel := config.Config.AI.DefaultModel
+	client, exists := llm.GetAdapter(defaultModel)
+	if !exists {
+		// 尝试获取任何可用的适配器
+		adapters := llm.ListAdapters()
+		if len(adapters) == 0 {
+			return nil
+		}
+		client, _ = llm.GetAdapter(adapters[0])
+	}
+	return client
+}
+
+// getMode 根据agent参数确定模式
+func getMode(isAgent bool) string {
+	if isAgent {
+		return "agent"
+	}
+	return "chat"
+}
+
 func init() {
 	rootCmd.AddCommand(chatCmd)
 
-	// 对话命令标志
-	chatCmd.Flags().StringP("model", "m", "", "指定使用的AI模型 (例如: openai, gemini)")
+	// 对话命令参数
+	chatCmd.Flags().BoolP("agent", "a", false, "启用智能体模式")
+	chatCmd.Flags().BoolP("think", "t", false, "显示AI思考过程")
 }

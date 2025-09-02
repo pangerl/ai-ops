@@ -42,7 +42,7 @@ func (w *WeatherTool) Execute(ctx context.Context, args map[string]any) (string,
 		return "", errors.NewError(errors.ErrCodeInvalidParam, "缺少或无效的 location 参数")
 	}
 
-	pkg.Infow("执行天气工具", map[string]any{"location": location})
+	pkg.Debugw("执行天气工具", map[string]any{"location": location})
 
 	// 调用天气查询逻辑
 	result, err := w.callWeatherAPI(ctx, location)
@@ -76,13 +76,13 @@ func (w *WeatherTool) callWeatherAPI(ctx context.Context, location string) (stri
 	// 判断输入类型并获取LocationID
 	if w.isLocationIDOrLatLon(location) {
 		locationID = location
-		pkg.Infow("使用LocationID或经纬度", map[string]any{"location_id": locationID})
+		pkg.Debugw("使用LocationID或经纬度", map[string]any{"location_id": locationID})
 	} else {
 		locationID, err = w.queryLocationID(ctx, apiHost, apiKey, location, client)
 		if err != nil {
 			return "", err
 		}
-		pkg.Infow("城市ID查询成功", map[string]any{"city": location, "location_id": locationID})
+		pkg.Debugw("城市ID查询成功", map[string]any{"city": location, "location_id": locationID})
 	}
 
 	// 查询天气

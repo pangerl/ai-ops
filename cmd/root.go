@@ -73,8 +73,7 @@ func initializeApp() error {
 	}
 
 	// 4. 初始化日志系统
-	logConfig := config.Config.Logging
-	if err := util.InitLogger(logLevel, logConfig.Format, logConfig.Output, logConfig.File); err != nil {
+	if err := util.InitLogger(logLevel, "text", "stdout", ""); err != nil {
 		return errors.WrapError(errors.ErrCodeConfigInvalid, "日志系统初始化失败", err)
 	}
 

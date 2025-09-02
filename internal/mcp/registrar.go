@@ -30,7 +30,7 @@ func NewMCPToolRegistrar(manager MCPManager, toolManager tools.ToolManager, time
 
 // RegisterTools 注册所有MCP工具
 func (r *MCPToolRegistrar) RegisterTools(ctx context.Context) error {
-	util.Infow("开始注册MCP工具", nil)
+	util.Debugw("开始注册MCP工具", nil)
 
 	sessions := r.manager.GetClients()
 	totalTools := 0
@@ -60,7 +60,7 @@ func (r *MCPToolRegistrar) RegisterTools(ctx context.Context) error {
 			}
 
 			totalTools++
-			util.Infow("MCP工具注册成功", map[string]any{
+			util.Debugw("MCP工具注册成功", map[string]any{
 				"server_name": serverName,
 				"tool_name":   toolInfo.Name,
 				"full_name":   mcpTool.Name(),
@@ -68,7 +68,7 @@ func (r *MCPToolRegistrar) RegisterTools(ctx context.Context) error {
 		}
 	}
 
-	util.Infow("MCP工具注册完成", map[string]any{
+	util.Debugw("MCP工具注册完成", map[string]any{
 		"total_tools":  totalTools,
 		"server_count": len(sessions),
 	})
@@ -78,7 +78,7 @@ func (r *MCPToolRegistrar) RegisterTools(ctx context.Context) error {
 
 // RefreshTools 刷新MCP工具注册
 func (r *MCPToolRegistrar) RefreshTools(ctx context.Context) error {
-	util.Infow("刷新MCP工具注册", nil)
+	util.Debugw("刷新MCP工具注册", nil)
 
 	// 重新初始化客户端
 	if err := r.manager.InitializeClients(ctx); err != nil {

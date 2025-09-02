@@ -150,7 +150,7 @@ func (t *SysInfoTool) getMemoryInfo(ctx context.Context, detail bool) (string, e
 		// 交换分区信息
 		swap, err := mem.SwapMemoryWithContext(ctx)
 		if err == nil {
-			result.WriteString(fmt.Sprintf("\n交换分区:\n"))
+			result.WriteString("\n交换分区:\n")
 			result.WriteString(fmt.Sprintf("总大小: %s\n", formatBytes(swap.Total)))
 			result.WriteString(fmt.Sprintf("已用: %s (%.1f%%)\n", formatBytes(swap.Used), swap.UsedPercent))
 		}
@@ -250,7 +250,7 @@ func (t *SysInfoTool) getLoadInfo(ctx context.Context, detail bool) (string, err
 	if detail {
 		hostInfo, err := host.InfoWithContext(ctx)
 		if err == nil {
-			result.WriteString(fmt.Sprintf("\n主机信息:\n"))
+			result.WriteString("\n主机信息:\n")
 			result.WriteString(fmt.Sprintf("主机名: %s\n", hostInfo.Hostname))
 			result.WriteString(fmt.Sprintf("操作系统: %s %s\n", hostInfo.OS, hostInfo.PlatformVersion))
 			result.WriteString(fmt.Sprintf("架构: %s\n", hostInfo.KernelArch))
@@ -275,14 +275,14 @@ func (t *SysInfoTool) getOverview(ctx context.Context) (string, error) {
 	// 内存
 	vmem, err := mem.VirtualMemoryWithContext(ctx)
 	if err == nil {
-		result.WriteString(fmt.Sprintf("💾 内存: %s / %s (%.1f%%)\n", 
+		result.WriteString(fmt.Sprintf("💾 内存: %s / %s (%.1f%%)\n",
 			formatBytes(vmem.Used), formatBytes(vmem.Total), vmem.UsedPercent))
 	}
 
 	// 负载
 	loadAvg, err := load.AvgWithContext(ctx)
 	if err == nil {
-		result.WriteString(fmt.Sprintf("⚡ 负载: %.2f, %.2f, %.2f\n", 
+		result.WriteString(fmt.Sprintf("⚡ 负载: %.2f, %.2f, %.2f\n",
 			loadAvg.Load1, loadAvg.Load5, loadAvg.Load15))
 	}
 

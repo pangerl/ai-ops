@@ -34,7 +34,7 @@ func NewMCPService(toolManager tools.ToolManager, configPath string, timeout tim
 
 // Initialize 初始化MCP服务
 func (s *MCPService) Initialize(ctx context.Context) error {
-	util.Infow("初始化MCP服务", map[string]any{
+	util.Debugw("初始化MCP服务", map[string]any{
 		"config_path": s.configPath,
 		"timeout":     s.timeout,
 	})
@@ -64,19 +64,18 @@ func (s *MCPService) Initialize(ctx context.Context) error {
 		return errors.WrapError(errors.ErrCodeInitializationFailed, "注册MCP工具失败", err)
 	}
 
-	util.Infow("MCP服务初始化完成", nil)
 	return nil
 }
 
 // Shutdown 关闭MCP服务
 func (s *MCPService) Shutdown() error {
-	util.Infow("关闭MCP服务", nil)
+	util.Debugw("关闭MCP服务", nil)
 	return s.manager.Shutdown()
 }
 
 // RefreshTools 刷新MCP工具
 func (s *MCPService) RefreshTools(ctx context.Context) error {
-	util.Infow("刷新MCP工具", nil)
+	util.Debugw("刷新MCP工具", nil)
 	return s.registrar.RefreshTools(ctx)
 }
 

@@ -29,15 +29,18 @@ type TUI struct {
 	aiColor         *color.Color
 	aiResponseColor *color.Color
 	errorColor      *color.Color
+	thinkingColor   *color.Color
 	renderer        *glamour.TermRenderer
+	thinkingRenderer *glamour.TermRenderer
 }
 
 // NewTUI creates a new TUI.
-func NewTUI(client ai.ModelAdapter, toolManager tools.ToolManager) (*TUI, error) {
+func NewTUI(client ai.ModelAdapter, toolManager tools.ToolManager, config SessionConfig) (*TUI, error) {
 	userColor := color.New(color.FgGreen).Add(color.Bold)
 	aiColor := color.New(color.FgCyan)
 	aiResponseColor := color.New(color.FgHiWhite)
 	errorColor := color.New(color.FgRed)
+	thinkingColor := color.New(color.FgYellow).Add(color.Italic)
 
 	historyFile := "/tmp/ai-ops-readline.tmp"
 	homeDir, err := os.UserHomeDir()
@@ -63,24 +66,39 @@ func NewTUI(client ai.ModelAdapter, toolManager tools.ToolManager) (*TUI, error)
 		return nil, fmt.Errorf("创建Markdown渲染器失败: %w", err)
 	}
 
-	return &TUI{
-		client:          client,
-		toolManager:     toolManager,
-		session:         NewSession(client, toolManager),
-		rl:              rl,
-		userColor:       userColor,
-		aiColor:         aiColor,
-		aiResponseColor: aiResponseColor,
-		errorColor:      errorColor,
-		renderer:        renderer,
-	}, nil
+	// 为思考内容创建单独的渲染器（较暗的样式）
+	thinkingRenderer, err := glamour.NewTermRenderer(
+		glamour.WithAutoStyle(),
+		glamour.WithWordWrap(120),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("创建思考渲染器失败: %w", err)
+	}
+
+	tui := &TUI{
+		client:           client,
+		toolManager:      toolManager,
+		session:          NewSession(client, toolManager, config),
+		rl:               rl,
+		userColor:        userColor,
+		aiColor:          aiColor,
+		aiResponseColor:  aiResponseColor,
+		errorColor:       errorColor,
+		thinkingColor:    thinkingColor,
+		renderer:         renderer,
+		thinkingRenderer: thinkingRenderer,
+	}
+
+	return tui, nil
 }
 
 // Run starts the main chat loop.
 func (t *TUI) Run() {
 	defer t.rl.Close()
-	fmt.Println("欢迎来到AI对话模式。输入 'exit', 'quit' 或 'bye' 退出。输入 'help' 获取帮助。")
-	fmt.Println("---------------------------------------------------")
+	t.showWelcome()
+
+	// 显示当前配置
+	t.showConfiguration()
 
 	for {
 		userInput, err := t.rl.Readline()
@@ -132,33 +150,110 @@ func (t *TUI) processInput(input string) error {
 		return err
 	}
 
-	t.aiColor.Println("\nAI:")
-	renderedOutput, err := t.renderer.Render(finalResponse)
-	if err != nil {
-		t.errorColor.Printf("渲染Markdown失败: %v\n", err)
-		// Fallback to plain text
-		fmt.Println(t.aiResponseColor.Sprint(finalResponse))
-	} else {
-		fmt.Println(renderedOutput)
-	}
+	// 处理思考过程和响应内容
+	t.renderResponseWithThinking(finalResponse)
 	fmt.Println("---------------------------------------------------")
 	return nil
 }
 
 // printHelp displays the help message.
 func (t *TUI) printHelp() {
-	fmt.Println("\n可用命令:")
-	fmt.Println("  exit, quit, bye    - 退出程序")
-	fmt.Println("  help               - 显示此帮助信息")
-	fmt.Println("---------------------------------------------------")
+	mode := "普通对话"
+	if t.session.config.Mode == "agent" {
+		mode = "智能体"
+	}
+
+	thinkStatus := "关闭"
+	if t.session.config.ShowThinking {
+		thinkStatus = "开启"
+	}
+
+	fmt.Printf("\n当前配置:\n")
+	fmt.Printf("  模式: %s\n", mode)
+	fmt.Printf("  思考显示: %s\n", thinkStatus)
+	fmt.Printf("\n可用命令:\n")
+	fmt.Printf("  exit, quit, bye    - 退出程序\n")
+	fmt.Printf("  help               - 显示此帮助信息\n")
+	fmt.Printf("  clear              - 清空对话历史\n")
+	fmt.Printf("---------------------------------------------------\n")
 }
 
-// RunSimpleLoop initializes and runs the TUI.
-func RunSimpleLoop(client ai.ModelAdapter, toolManager tools.ToolManager) {
-	tui, err := NewTUI(client, toolManager)
+// showWelcome 显示欢迎信息
+func (t *TUI) showWelcome() {
+	mode := "普通对话模式"
+	tips := "我是你的AI助手，随时为你答疑解惑"
+
+	if t.session.config.Mode == "agent" {
+		mode = "智能体模式"
+		tips = "我是自主智能体，能够分析任务并制定执行计划"
+	}
+
+	fmt.Printf("欢迎来到AI对话系统 - %s\n", mode)
+	fmt.Printf("%s\n", tips)
+	if t.session.config.ShowThinking {
+		fmt.Printf("💭 思考过程显示已开启\n")
+	}
+	fmt.Printf("输入 'help' 获取帮助，'exit' 退出\n")
+}
+
+// showConfiguration 显示当前配置
+func (t *TUI) showConfiguration() {
+	fmt.Printf("---------------------------------------------------\n")
+}
+
+// renderResponseWithThinking 渲染包含思考过程的响应
+func (t *TUI) renderResponseWithThinking(response string) {
+	if t.session.config.ShowThinking {
+		thinking := ExtractThinking(response)
+		if thinking.Thinking != "" {
+			// 显示思考过程
+			t.thinkingColor.Println("\n🤔 思考过程:")
+			thinkingRendered, err := t.thinkingRenderer.Render(thinking.Thinking)
+			if err != nil {
+				fmt.Println(t.thinkingColor.Sprint(thinking.Thinking))
+			} else {
+				fmt.Print(thinkingRendered)
+			}
+			fmt.Println("---")
+		}
+		// 显示正式回答
+		t.aiColor.Println("AI:")
+		t.renderContent(thinking.Content)
+	} else {
+		// 移除思考标记，只显示正式内容
+		content := RemoveThinking(response)
+		t.aiColor.Println("\nAI:")
+		t.renderContent(content)
+	}
+}
+
+// renderContent 渲染内容
+func (t *TUI) renderContent(content string) {
+	renderedOutput, err := t.renderer.Render(content)
+	if err != nil {
+		t.errorColor.Printf("渲染Markdown失败: %v\n", err)
+		// Fallback to plain text
+		fmt.Println(t.aiResponseColor.Sprint(content))
+	} else {
+		fmt.Print(renderedOutput)
+	}
+}
+
+// RunChat 启动对话（新的入口函数）
+func RunChat(client ai.ModelAdapter, toolManager tools.ToolManager, config SessionConfig) {
+	tui, err := NewTUI(client, toolManager, config)
 	if err != nil {
 		fmt.Printf("初始化TUI失败: %v\n", err)
 		return
 	}
 	tui.Run()
+}
+
+// RunSimpleLoop 保持向后兼容（废弃）
+func RunSimpleLoop(client ai.ModelAdapter, toolManager tools.ToolManager) {
+	config := SessionConfig{
+		Mode:         "chat",
+		ShowThinking: false,
+	}
+	RunChat(client, toolManager, config)
 }

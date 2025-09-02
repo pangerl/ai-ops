@@ -162,7 +162,7 @@ func (m *DefaultToolManager) ExecuteToolCall(ctx context.Context, call ToolCall)
 	startTime := time.Now()
 
 	//记录工具调用开始
-	util.Infow("开始执行工具调用", map[string]any{
+	util.Debugw("开始执行工具调用", map[string]any{
 		"tool_name": call.Name,
 		"call_id":   call.ID,
 		"arguments": call.Arguments,

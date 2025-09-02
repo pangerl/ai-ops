@@ -110,7 +110,7 @@ func (t *MCPTool) Execute(ctx context.Context, args map[string]any) (string, err
 		defer cancel()
 	}
 
-	util.Infow("执行MCP工具", map[string]any{
+	util.Debugw("执行MCP工具", map[string]any{
 		"server_name": t.serverName,
 		"tool_name":   t.toolInfo.Name,
 		"full_name":   t.Name(),

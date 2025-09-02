@@ -31,7 +31,7 @@ func NewMCPManager() MCPManager {
 
 // LoadSettings 加载MCP配置
 func (m *DefaultMCPManager) LoadSettings(configPath string) error {
-	util.Infow("加载MCP配置", map[string]any{
+	util.Debugw("加载MCP配置", map[string]any{
 		"config_path": configPath,
 	})
 
@@ -71,7 +71,7 @@ func (m *DefaultMCPManager) InitializeClients(ctx context.Context) error {
 		return errors.NewError(errors.ErrCodeMCPNotConfigured, "MCP配置未加载")
 	}
 
-	util.Infow("初始化MCP客户端", map[string]any{
+	util.Debugw("初始化MCP客户端", map[string]any{
 		"server_count": len(m.settings.MCPServers),
 	})
 
@@ -84,7 +84,7 @@ func (m *DefaultMCPManager) InitializeClients(ctx context.Context) error {
 	// 初始化每个服务器的会话
 	for serverName, config := range m.settings.MCPServers {
 		if config.Disabled {
-			util.Infow("跳过已禁用的MCP服务器", map[string]any{
+			util.Debugw("跳过已禁用的MCP服务器", map[string]any{
 				"server_name": serverName,
 			})
 			continue
@@ -162,7 +162,7 @@ func (m *DefaultMCPManager) Shutdown() error {
 	m.mutex.Lock()
 	defer m.mutex.Unlock()
 
-	util.Infow("关闭所有MCP客户端", map[string]any{
+	util.Debugw("关闭所有MCP客户端", map[string]any{
 		"client_count": len(m.sessions),
 	})
 
