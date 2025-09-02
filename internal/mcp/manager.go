@@ -46,10 +46,21 @@ func (m *DefaultMCPManager) LoadSettings(configPath string) error {
 	// 解析JSON配置
 	var settings MCPSettings
 	if err := json.Unmarshal(data, &settings); err != nil {
+		util.Errorw("JSON解析失败，原始数据内容", map[string]any{
+			"config_path":       configPath,
+			"json_data_len":     len(data),
+			"json_data_preview": string(data[:min(len(data), 200)]) + "...",
+			"error":             err.Error(),
+		})
 		return errors.WrapErrorWithDetails(errors.ErrCodeConfigParseFailed,
 			"解析MCP配置文件失败", err,
 			fmt.Sprintf("配置文件路径: %s", configPath))
 	}
+
+	util.Debugw("JSON解析成功", map[string]any{
+		"config_path":   configPath,
+		"json_data_len": len(data),
+	})
 
 	m.mutex.Lock()
 	m.settings = &settings
@@ -122,6 +133,14 @@ func (m *DefaultMCPManager) InitializeClients(ctx context.Context) error {
 				"MCP客户端连接失败", err,
 				fmt.Sprintf("服务器名称: %s", serverName))
 			errors.HandleError(wrappedErr)
+			util.Errorw("MCP服务器连接失败", map[string]any{
+				"server_name": serverName,
+				"command":     config.Command,
+				"args":        config.Args,
+				"type":        config.Type,
+				"timeout":     timeout,
+				"error":       err.Error(),
+			})
 			continue
 		}
 

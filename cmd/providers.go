@@ -23,6 +23,5 @@ func RegisterLLMProviders() error {
 	}
 	util.Debug("Gemini 提供者已注册")
 
-	util.Info("所有 LLM 提供者注册完成")
 	return nil
 }

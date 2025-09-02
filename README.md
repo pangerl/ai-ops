@@ -6,6 +6,7 @@ AI-Ops 是一个基于 Go 的智能运维命令行工具，聚合大语言模型
 ## ✨ 核心特性
 
 - **智能对话**：通过命令行与 AI 进行自然语言交互，支持多轮上下文对话
+- **智能体模式**：基于推理-行动模式的智能任务执行，支持复杂多步骤任务自动化
 - **工具自动调用**：AI 可根据对话内容自动调用插件工具，完成系统监控、天气查询、知识检索等任务
 - **多模型支持**：支持 OpenAI、Gemini、GLM 等主流大语言模型，可灵活切换
 - **模块化架构**：采用注册表模式的模块化设计，支持插件扩展和 MCP 协议集成
@@ -86,7 +87,7 @@ AI-Ops 内置了多种实用工具，AI 可在对话中自动调用：
    export GEMINI_API_KEY="your_gemini_api_key"
    export OPENAI_API_KEY="your_openai_api_key"
    export GLM_API_KEY="your_glm_api_key"
-   
+
    # 天气工具 API Key（可选）
    export QWEATHER_API_KEY="your_qweather_api_key"
    ```
@@ -98,11 +99,23 @@ AI-Ops 内置了多种实用工具，AI 可在对话中自动调用：
    ./ai-ops chat
    ```
 
-2. **与 AI 交互示例**
+2. **使用智能体模式执行复杂任务**
+   ```bash
+   # 普通对话模式
+   ./ai-ops chat
+   
+   # 智能体模式（自主规划和执行任务）
+   ./ai-ops chat -a
+   
+   # 智能体模式 + 显示思考过程
+   ./ai-ops chat -a -t
+   ```
+
+3. **与 AI 交互示例**
    ```
    > 查看当前系统 CPU 和内存使用情况
    AI 正在调用工具: sysinfo({"action":"overview"})
-   
+
    📊 系统概览
    🔥 CPU: 15.2%
    💾 内存: 8.1 GB / 16.0 GB (50.6%)
@@ -114,26 +127,26 @@ AI-Ops 内置了多种实用工具，AI 可在对话中自动调用：
    ```
    > 今天北京天气怎么样？
    AI 正在调用工具: weather({"location":"北京"})
-   
+
    北京市当前天气为晴，气温25℃，体感温度26℃，微风。
    ```
 
-3. **其他命令**
+4. **其他命令**
    ```bash
    # 显示帮助
    ./ai-ops --help
-   
+
    # 显示版本信息
    ./ai-ops version
-   
+
    # 配置管理
    ./ai-ops config
-   
+
    # MCP 服务管理
    ./ai-ops mcp
    ```
 
-4. **退出对话**
+5. **退出对话**
    输入 `exit` 或 `quit` 即可安全退出。
 
 ## ⚙️ 配置说明
@@ -185,12 +198,12 @@ output = "stdout"
 ```
 ai-ops/
 ├── cmd/                    # CLI 命令定义
-│   ├── chat.go            # 交互式对话命令
+│   ├── chat.go            # 交互式对话命令（含智能体模式）
 │   ├── config.go          # 配置管理命令
 │   ├── mcp.go             # MCP 服务命令
 │   └── ...
 ├── internal/
-│   ├── chat/              # 交互式界面（TUI）
+│   ├── chat/              # 交互式界面（TUI）+ 智能体模式
 │   ├── config/            # 配置管理
 │   ├── llm/               # LLM 适配器系统
 │   │   ├── adapter.go     # 适配器接口
@@ -209,6 +222,7 @@ ai-ops/
 │   └── util/              # 通用工具
 ├── pkg/
 │   └── registry/          # 通用注册表框架
+├── .docs/                 # 技术文档
 ├── config.toml            # 主配置文件
 ├── local-config.toml      # 本地配置（可选）
 └── main.go               # 程序入口
@@ -223,31 +237,31 @@ ai-ops/
 
    ```go
    package plugins
-   
+
    import "context"
-   
+
    type MyTool struct{}
-   
+
    func NewMyTool() interface{} {
        return &MyTool{}
    }
-   
+
    func (t *MyTool) ID() string {
        return "mytool"
    }
-   
+
    func (t *MyTool) Name() string {
        return "我的工具"
    }
-   
+
    func (t *MyTool) Type() string {
        return "custom"
    }
-   
+
    func (t *MyTool) Description() string {
        return "工具功能描述"
    }
-   
+
    func (t *MyTool) Parameters() map[string]any {
        return map[string]any{
            "type": "object",
@@ -260,7 +274,7 @@ ai-ops/
            "required": []string{"param"},
        }
    }
-   
+
    func (t *MyTool) Execute(ctx context.Context, args map[string]any) (string, error) {
        // 实现工具逻辑
        return "执行结果", nil
@@ -290,19 +304,78 @@ ai-ops/
 3. **配置模型**
    在 `config.toml` 中添加新模型配置
 
-## 🤝 贡献指南
+## MCP
 
-1. Fork 本项目
-2. 创建功能分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 创建 Pull Request
+### k8s
+
+[kubernetes-mcp-server](https://github.com/containers/kubernetes-mcp-server)
+
+```json
+{
+  "mcpServers": {
+    "kubernetes-mcp-server": {
+      "command": "npx",
+      "args": ["-y", "kubernetes-mcp-server@latest"]
+    }
+  }
+}
+```
+
+### victoriametrics
+
+[mcp-victoriametrics](https://github.com/VictoriaMetrics-Community/mcp-victoriametrics)
+
+```json
+{
+  "mcpServers": {
+    "victoriametrics": {
+      "command": "/path/to/mcp-victoriametrics",
+      "env": {
+        "VM_INSTANCE_ENTRYPOINT": "<YOUR_VM_INSTANCE>",
+        "VM_INSTANCE_TYPE": "<YOUR_VM_INSTANCE_TYPE>",
+        "VM_INSTANCE_BEARER_TOKEN": "<YOUR_VM_BEARER_TOKEN>"
+      }
+    }
+  }
+}
+```
+
+## CLS
+
+[cls-mcp-server](https://cloud.tencent.com/document/product/614/118699)
+
+```json
+{
+  "mcpServers": {
+    "cls-mcp-server": {
+      "isActive": true,
+      "name": "cls-mcp-server",
+      "type": "stdio",
+      "registryUrl": "",
+      "command": "npx",
+      "args": [
+        "-y",
+        "cls-mcp-server"
+      ],
+      "env": {
+        "TRANSPORT": "stdio",
+        "TENCENTCLOUD_SECRET_ID": "YOUR_TENCENT_SECRET_ID",
+        "TENCENTCLOUD_SECRET_KEY": "YOUR_TENCENT_SECRET_KEY",
+        "TENCENTCLOUD_API_BASE_HOST": "tencentcloudapi.com",
+        "TENCENTCLOUD_REGION": "ap-guangzhou",
+        "MAX_LENGTH": "15000"
+      }
+    }
+  }
+}
+```
 
 ## 📝 版本历史
 
 - **v1.0.0** - 初始版本，包含基础对话和工具调用功能
 - **v1.1.0** - 新增系统监控工具 (sysinfo)
 - **v1.2.0** - 新增 MCP 协议支持
+- **v1.3.0** - 集成智能体模式到 chat 命令，支持复杂任务自动化执行
 
 ## 📄 开源许可
 

@@ -11,12 +11,13 @@ import (
 
 // MCPServerConfig MCP服务器配置
 type MCPServerConfig struct {
-	Disabled bool              `json:"disabled"`
-	Timeout  int               `json:"timeout"`
-	Type     string            `json:"type"`
-	Command  string            `json:"command"`
-	Args     []string          `json:"args"`
-	Env      map[string]string `json:"env,omitempty"`
+	Disabled         bool              `json:"disabled"`
+	Timeout          int               `json:"timeout"`
+	Type             string            `json:"type"`
+	Command          string            `json:"command"`
+	Args             []string          `json:"args"`
+	Env              map[string]string `json:"env,omitempty"`
+	FilterNonJSONRPC bool              `json:"filterNonJSONRPC,omitempty"` // 是否过滤非JSON-RPC输出
 }
 
 // MCPSettings MCP配置文件结构

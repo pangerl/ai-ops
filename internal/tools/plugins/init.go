@@ -10,20 +10,20 @@ import (
 func RegisterPluginFactories(tm tools.ToolManager) {
 	util.Debugw("开始注册插件工厂", nil)
 
-	// 核心工具：sysinfo - 无条件注册
-	tm.RegisterToolFactory("sysinfo", NewSysInfoTool)
+	// 核心工具：echo - 无条件注册
+	tm.RegisterToolFactory("echo", NewEchoTool)
 	util.Debugw("核心工具注册完成", map[string]any{
-		"tool": "sysinfo",
+		"tool": "echo",
 	})
 
 	// 可选工具：根据配置决定是否注册
 	cfg := config.GetConfig()
-	
-	// Echo工具 - 调试用途，根据配置启用
-	if cfg.Tools.Echo {
-		tm.RegisterToolFactory("echo", NewEchoTool)
+
+	// Sysinfo工具 - 系统信息获取，根据配置启用
+	if cfg.Tools.Sysinfo {
+		tm.RegisterToolFactory("sysinfo", NewSysInfoTool)
 		util.Debugw("可选工具注册", map[string]any{
-			"tool": "echo",
+			"tool": "sysinfo",
 		})
 	}
 

@@ -14,6 +14,12 @@ go build -o ai-ops .
 # 启动交互式对话模式
 ./ai-ops chat
 
+# 启用智能体模式（自主规划和执行任务）
+./ai-ops chat -a
+
+# 智能体模式 + 显示思考过程
+./ai-ops chat -a -t
+
 # 显示帮助
 ./ai-ops --help
 
@@ -73,7 +79,7 @@ go test ./...
 ### 目录结构
 
 - `cmd/` - CLI 命令定义和应用初始化
-- `internal/chat/` - 交互式对话界面（TUI）
+- `internal/chat/` - 交互式对话界面（TUI）+ 智能体模式
 - `internal/config/` - 配置管理
 - `internal/llm/` - LLM 适配器和注册表
 - `internal/mcp/` - MCP 协议支持

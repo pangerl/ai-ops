@@ -117,7 +117,6 @@ func initializeRegistries() error {
 	if err := tools.InitRegistry(); err != nil {
 		return errors.WrapError(errors.ErrCodeInitializationFailed, "工具注册表初始化失败", err)
 	}
-	util.Info("所有注册表和提供者初始化完成")
 	return nil
 }
 
@@ -133,7 +132,6 @@ func initializeTools() error {
 	plugins.RegisterPluginFactories(toolManager)
 	toolManager.InitializePlugins()
 
-	util.Info("工具管理器和插件初始化完成")
 	util.Debugw("工具状态", map[string]interface{}{
 		"registered_tools": len(toolManager.GetTools()),
 	})
@@ -164,7 +162,6 @@ func initializeAIClients() error {
 		defaultModelName = llm.ListAdapters()[0]
 	}
 
-	util.Info("AI 适配器初始化完成")
 	util.Debugw("AI 适配器状态", map[string]interface{}{
 		"registered_adapters": llm.ListAdapters(),
 		"default_adapter":     defaultModelName,

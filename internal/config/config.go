@@ -61,6 +61,7 @@ type RAGConfig struct {
 // 工具配置
 type ToolsConfig struct {
 	Echo    bool `toml:"echo"`    // Echo工具（调试用）
+	Sysinfo bool `toml:"sysinfo"` // 系统信息工具
 	Weather bool `toml:"weather"` // 天气工具
 	RAG     bool `toml:"rag"`     // RAG工具
 }
@@ -163,8 +164,9 @@ retrieval_k = 15
 top_k = 5
 
 [tools]
-# 工具启用配置（sysinfo 为核心工具，始终启用）
-echo = false     # Echo工具（调试用）
+# 工具启用配置（echo 为核心工具，始终启用）
+echo = true      # Echo工具（调试用，核心工具）
+sysinfo = false  # 系统信息工具
 weather = false  # 天气工具（需要配置 QWEATHER_API_KEY）
 rag = false      # RAG工具（需要启动RAG服务）
 `
