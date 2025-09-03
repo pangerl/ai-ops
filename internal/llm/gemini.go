@@ -251,10 +251,13 @@ func (c *GeminiClient) buildRequest(messages []Message, toolDefs []tools.ToolDef
 				},
 			})
 		} else {
-			// 处理 "user" 和 "assistant" 角色
+			// 处理 "user"、"assistant" 和 "system" 角色
 			var role string
 			if msg.Role == "assistant" {
 				role = "model"
+			} else if msg.Role == "system" {
+				// Gemini 不支持 system 角色，将其转换为 user 角色
+				role = "user"
 			} else {
 				role = msg.Role
 			}
@@ -303,10 +306,46 @@ func (c *GeminiClient) convertToolsToGeminiTools(toolDefs []tools.ToolDefinition
 		functions[i] = GeminiFunctionDeclaration{
 			Name:        tool.Name,
 			Description: tool.Description,
-			Parameters:  tool.Parameters,
+			Parameters:  c.cleanSchemaForGemini(tool.Parameters),
 		}
 	}
 	return []GeminiTool{{FunctionDeclarations: functions}}
+}
+
+// cleanSchemaForGemini 清理 JSON Schema 以兼容 Gemini API
+func (c *GeminiClient) cleanSchemaForGemini(schema map[string]interface{}) map[string]interface{} {
+	if schema == nil {
+		return nil
+	}
+
+	// 深拷贝 schema 以避免修改原始数据
+	cleaned := make(map[string]interface{})
+	for k, v := range schema {
+		// 跳过 Gemini 不支持的字段
+		if k == "$schema" || k == "additionalProperties" {
+			continue
+		}
+		
+		// 递归清理嵌套的对象
+		if mapVal, ok := v.(map[string]interface{}); ok {
+			cleaned[k] = c.cleanSchemaForGemini(mapVal)
+		} else if sliceVal, ok := v.([]interface{}); ok {
+			// 清理数组中的对象
+			cleanedSlice := make([]interface{}, len(sliceVal))
+			for i, item := range sliceVal {
+				if itemMap, ok := item.(map[string]interface{}); ok {
+					cleanedSlice[i] = c.cleanSchemaForGemini(itemMap)
+				} else {
+					cleanedSlice[i] = item
+				}
+			}
+			cleaned[k] = cleanedSlice
+		} else {
+			cleaned[k] = v
+		}
+	}
+
+	return cleaned
 }
 
 // parseResponse 解析 Gemini 响应

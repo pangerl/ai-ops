@@ -18,8 +18,16 @@ import (
 // RAGTool retrieves data from a knowledge base.
 type RAGTool struct{}
 
+func (t *RAGTool) ID() string {
+	return "rag_retrieval"
+}
+
 func (t *RAGTool) Name() string {
 	return "rag_retrieval"
+}
+
+func (t *RAGTool) Type() string {
+	return "plugin"
 }
 
 func (t *RAGTool) Description() string {

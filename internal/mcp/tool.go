@@ -24,7 +24,7 @@ func NewMCPTool(serverName string, session *mcp.ClientSession, toolInfo *mcp.Too
 
 // Name 获取工具名称
 func (t *MCPTool) Name() string {
-	return fmt.Sprintf("%s.%s", t.serverName, t.toolInfo.Name)
+	return fmt.Sprintf("%s_%s", t.serverName, t.toolInfo.Name)
 }
 
 // Description 获取工具描述
@@ -66,7 +66,7 @@ func (t *MCPTool) Parameters() map[string]any {
 	return schema
 }
 
-// fixSchema 递归修复JSON schema，以兼容Gemini API
+// fixSchema 递归修复JSON schema，以兼容Gemini API和OpenAI API
 func fixSchema(node map[string]any) {
 	// 将 exclusiveMaximum/exclusiveMinimum 替换为 maximum/minimum
 	if val, ok := node["exclusiveMaximum"]; ok {
@@ -76,6 +76,13 @@ func fixSchema(node map[string]any) {
 	if val, ok := node["exclusiveMinimum"]; ok {
 		node["minimum"] = val
 		delete(node, "exclusiveMinimum")
+	}
+
+	// OpenAI API 要求 object 类型必须有 properties 字段
+	if typeVal, ok := node["type"]; ok && typeVal == "object" {
+		if _, hasProperties := node["properties"]; !hasProperties {
+			node["properties"] = map[string]any{}
+		}
 	}
 
 	// Gemini只支持string类型的 "enum" 和 "date-time" format

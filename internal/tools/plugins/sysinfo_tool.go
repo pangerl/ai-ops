@@ -29,7 +29,7 @@ func (t *SysInfoTool) ID() string {
 
 // Name 返回工具名称
 func (t *SysInfoTool) Name() string {
-	return "系统信息工具"
+	return "sysinfo"
 }
 
 // Type 返回工具类型

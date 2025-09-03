@@ -209,13 +209,13 @@ func (s *Session) getSystemPrompt() string {
 }
 
 // buildToolDescriptions 构建工具描述
-func (s *Session) buildToolDescriptions() string {
-	var descriptions []string
-	for _, tool := range s.toolDefs {
-		descriptions = append(descriptions, fmt.Sprintf("- %s: %s", tool.Name, tool.Description))
-	}
-	return strings.Join(descriptions, "\n")
-}
+// func (s *Session) buildToolDescriptions() string {
+// 	var descriptions []string
+// 	for _, tool := range s.toolDefs {
+// 		descriptions = append(descriptions, fmt.Sprintf("- %s: %s", tool.Name, tool.Description))
+// 	}
+// 	return strings.Join(descriptions, "\n")
+// }
 
 // getChatSystemPrompt 普通对话模式的系统提示词
 func (s *Session) getChatSystemPrompt(toolDescriptions string) string {
