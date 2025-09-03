@@ -127,7 +127,7 @@ func (m *DefaultMCPManager) InitializeClients(ctx context.Context) error {
 		connectCtx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
 
-		session, err := client.Connect(connectCtx, transport)
+		session, err := client.Connect(connectCtx, transport, nil)
 		if err != nil {
 			wrappedErr := errors.WrapErrorWithDetails(errors.ErrCodeMCPConnectionFailed,
 				"MCP客户端连接失败", err,
