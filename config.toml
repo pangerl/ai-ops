@@ -23,7 +23,10 @@ base_url = "https://open.bigmodel.cn/api/paas/v4"
 model = "glm-4.5"
 
 [logging]
-level = "warn" # debug, info, warn, error
+level = "info"          # debug, info, warn, error
+format = "text"         # text 或 json
+output = "both"         # stdout/stderr/file/both
+file = "logs/ai-ops.log"
 
 [weather]
 api_host = "https://devapi.qweather.com"

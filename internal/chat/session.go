@@ -197,7 +197,8 @@ func (s *Session) executeTools(ctx context.Context, toolCalls []llm.ToolCall) ([
 
 // getSystemPrompt 根据模式生成系统提示词
 func (s *Session) getSystemPrompt() string {
-	toolDescriptions := s.buildToolDescriptions()
+	// toolDescriptions := s.buildToolDescriptions()
+	toolDescriptions := ""
 
 	switch s.config.Mode {
 	case "agent":

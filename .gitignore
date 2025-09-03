@@ -35,3 +35,4 @@ ai-ops
 .DS_Store
 .docs/
 mcp_settings.json
+logs/

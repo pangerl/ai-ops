@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -39,6 +40,25 @@ var logLevelColors = map[LogLevel]string{
 
 const colorReset = "\033[0m"
 
+// 多输出Writer，支持同时写入多个目标
+type MultiWriter struct {
+	writers []io.Writer
+}
+
+func NewMultiWriter(writers ...io.Writer) *MultiWriter {
+	return &MultiWriter{writers: writers}
+}
+
+func (mw *MultiWriter) Write(p []byte) (n int, err error) {
+	for _, w := range mw.writers {
+		n, err = w.Write(p)
+		if err != nil {
+			return
+		}
+	}
+	return len(p), nil
+}
+
 // 日志器结构
 type Logger struct {
 	level       LogLevel
@@ -46,6 +66,7 @@ type Logger struct {
 	output      io.Writer
 	enableColor bool
 	logger      *log.Logger
+	fileHandle  *os.File // 文件句柄，用于清理
 }
 
 // 全局日志器实例
@@ -294,14 +315,13 @@ func InitLogger(level, format, output, file string) error {
 	logLevel := ParseLogLevel(level)
 
 	// 关闭旧的文件句柄（如有）
-	if DefaultLogger != nil {
-		if f, ok := DefaultLogger.output.(*os.File); ok && f != os.Stdout && f != os.Stderr {
-			_ = f.Close()
-		}
+	if DefaultLogger != nil && DefaultLogger.fileHandle != nil {
+		_ = DefaultLogger.fileHandle.Close()
 	}
 
 	var writer io.Writer
 	var enableColor bool
+	var fileHandle *os.File
 
 	switch output {
 	case "stdout":
@@ -314,17 +334,49 @@ func InitLogger(level, format, output, file string) error {
 		if file == "" {
 			return errors.NewError(errors.ErrCodeConfigInvalid, "日志输出为文件时必须指定文件路径")
 		}
+		// 创建日志目录
+		if err := os.MkdirAll(filepath.Dir(file), 0755); err != nil {
+			return errors.WrapError(errors.ErrCodeConfigInvalid, "无法创建日志目录", err)
+		}
 		f, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 		if err != nil {
 			return errors.WrapError(errors.ErrCodeConfigInvalid, "无法打开日志文件", err)
 		}
 		writer = f
+		fileHandle = f
 		enableColor = false
+	case "both":
+		if file == "" {
+			return errors.NewError(errors.ErrCodeConfigInvalid, "日志输出为both时必须指定文件路径")
+		}
+		// 创建日志目录
+		if err := os.MkdirAll(filepath.Dir(file), 0755); err != nil {
+			return errors.WrapError(errors.ErrCodeConfigInvalid, "无法创建日志目录", err)
+		}
+		f, err := os.OpenFile(file, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			return errors.WrapError(errors.ErrCodeConfigInvalid, "无法打开日志文件", err)
+		}
+		writer = NewMultiWriter(os.Stdout, f)
+		fileHandle = f
+		enableColor = true // 控制台部分仍然使用颜色
 	default:
 		writer = os.Stdout
 		enableColor = true
 	}
 
-	DefaultLogger = NewLogger(logLevel, format, writer, enableColor)
+	// 设置默认格式
+	if format == "" {
+		format = "text"
+	}
+
+	DefaultLogger = &Logger{
+		level:       logLevel,
+		format:      format,
+		output:      writer,
+		enableColor: enableColor,
+		logger:      log.New(writer, "", 0),
+		fileHandle:  fileHandle,
+	}
 	return nil
 }

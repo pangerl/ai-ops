@@ -41,7 +41,10 @@ type ModelConfig struct {
 
 // 日志配置
 type LoggingConfig struct {
-	Level string `toml:"level"` // debug, info, warn, error
+	Level  string `toml:"level"`  // debug, info, warn, error
+	Format string `toml:"format"` // text 或 json
+	Output string `toml:"output"` // stdout/stderr/file/both
+	File   string `toml:"file"`   // 日志文件路径
 }
 
 // 天气配置
@@ -152,6 +155,9 @@ model = "glm-4.5"
 
 [logging]
 level = "warn"
+format = "text"
+output = "stdout"
+file = "logs/ai-ops.log"
 
 [weather]
 api_host = "https://devapi.qweather.com"
@@ -316,12 +322,56 @@ func validateModelConfig(name string, model *ModelConfig) error {
 func validateLoggingConfig(logging *LoggingConfig) error {
 	// 验证日志级别
 	validLevels := []string{"debug", "info", "warn", "error"}
+	levelValid := false
 	for _, level := range validLevels {
 		if logging.Level == level {
-			return nil
+			levelValid = true
+			break
 		}
 	}
-	return fmt.Errorf("无效的日志级别: %s（支持: debug, info, warn, error）", logging.Level)
+	if !levelValid {
+		return fmt.Errorf("无效的日志级别: %s（支持: debug, info, warn, error）", logging.Level)
+	}
+
+	// 验证日志格式
+	if logging.Format != "" {
+		validFormats := []string{"text", "json"}
+		formatValid := false
+		for _, format := range validFormats {
+			if logging.Format == format {
+				formatValid = true
+				break
+			}
+		}
+		if !formatValid {
+			return fmt.Errorf("无效的日志格式: %s（支持: text, json）", logging.Format)
+		}
+	}
+
+	// 验证输出方式
+	if logging.Output != "" {
+		validOutputs := []string{"stdout", "stderr", "file", "both"}
+		outputValid := false
+		for _, output := range validOutputs {
+			if logging.Output == output {
+				outputValid = true
+				break
+			}
+		}
+		if !outputValid {
+			return fmt.Errorf("无效的日志输出方式: %s（支持: stdout, stderr, file, both）", logging.Output)
+		}
+	}
+
+	// 如果输出包含文件，验证文件路径
+	if logging.Output == "file" || logging.Output == "both" {
+		if logging.File == "" {
+			return fmt.Errorf("日志输出为文件时必须指定文件路径")
+		}
+	}
+
+
+	return nil
 }
 
 // 验证天气配置

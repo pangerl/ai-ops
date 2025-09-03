@@ -101,7 +101,7 @@ func (t *TUI) Run() {
 	t.showConfiguration()
 
 	for {
-		userInput, err := t.rl.Readline()
+		userInput, err := t.readUserInput()
 		if err != nil { // io.EOF, readline.ErrInterrupt
 			if err == io.EOF || err == readline.ErrInterrupt {
 				break
@@ -118,6 +118,47 @@ func (t *TUI) Run() {
 		}
 	}
 	fmt.Println("再见!")
+}
+
+// readUserInput 读取用户输入，支持多行输入模式
+func (t *TUI) readUserInput() (string, error) {
+	line, err := t.rl.Readline()
+	if err != nil {
+		return "", err
+	}
+
+	// 检查是否进入多行输入模式
+	trimmedLine := strings.TrimSpace(line)
+	if trimmedLine == "```" {
+		return t.readMultilineInput()
+	}
+
+	return line, nil
+}
+
+// readMultilineInput 读取多行输入，直到遇到结束标记
+func (t *TUI) readMultilineInput() (string, error) {
+	t.rl.SetPrompt(t.userColor.Sprint("... "))
+	defer t.rl.SetPrompt(t.userColor.Sprint("You: "))
+
+	var lines []string
+	fmt.Println(t.userColor.Sprint("进入多行输入模式，输入 '```' 结束输入"))
+
+	for {
+		line, err := t.rl.Readline()
+		if err != nil {
+			return "", err
+		}
+
+		trimmedLine := strings.TrimSpace(line)
+		if trimmedLine == "```" {
+			break
+		}
+
+		lines = append(lines, line)
+	}
+
+	return strings.Join(lines, "\n"), nil
 }
 
 // processInput handles the user's input.
@@ -175,6 +216,7 @@ func (t *TUI) printHelp() {
 	fmt.Printf("  exit, quit, bye    - 退出程序\n")
 	fmt.Printf("  help               - 显示此帮助信息\n")
 	fmt.Printf("  clear              - 清空对话历史\n")
+	fmt.Printf("  ```                - 进入多行输入模式（再次输入```结束）\n")
 	fmt.Printf("---------------------------------------------------\n")
 }
 
