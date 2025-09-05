@@ -82,7 +82,7 @@ func initializeApp() error {
 		logOutput = "stdout"
 	}
 	logFile := config.Config.Logging.File
-	
+
 	if err := util.InitLogger(logLevel, logFormat, logOutput, logFile); err != nil {
 		return errors.WrapError(errors.ErrCodeConfigInvalid, "日志系统初始化失败", err)
 	}

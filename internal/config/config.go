@@ -370,7 +370,6 @@ func validateLoggingConfig(logging *LoggingConfig) error {
 		}
 	}
 
-
 	return nil
 }
 

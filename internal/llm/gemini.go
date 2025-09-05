@@ -325,7 +325,7 @@ func (c *GeminiClient) cleanSchemaForGemini(schema map[string]interface{}) map[s
 		if k == "$schema" || k == "additionalProperties" {
 			continue
 		}
-		
+
 		// 递归清理嵌套的对象
 		if mapVal, ok := v.(map[string]interface{}); ok {
 			cleaned[k] = c.cleanSchemaForGemini(mapVal)

@@ -179,6 +179,8 @@ func (s *Session) executeTools(ctx context.Context, toolCalls []llm.ToolCall) ([
 				content = fmt.Sprintf("Failed to serialize result for tool %s: %v", tc.Name, jsonErr)
 			} else {
 				content = string(resultBytes)
+				// 对工具响应内容进行长度限制，防止消息过长导致API调用失败
+				content = s.truncateToolResponse(content, tc.Name)
 			}
 		}
 
@@ -245,6 +247,11 @@ func (s *Session) getChatSystemPrompt(toolDescriptions string) string {
 - 提供清晰、结构化的回答
 - 在需要时展示思考过程
 
+工具使用指导:
+- 使用参数过滤减少不必要的数据量
+- 系统会自动截断过长的工具响应
+- 专注于用户关心的核心信息
+
 回答风格:
 - 简洁明了，直接回答用户问题
 - 适当使用markdown格式提升可读性
@@ -287,6 +294,12 @@ func (s *Session) getAgentSystemPrompt(toolDescriptions string) string {
 - 在遇到障碍时自主调整策略
 - 持续优化执行效率
 - 详细记录执行过程和思考逻辑
+
+工具使用原则:
+- 优先使用参数过滤来减少数据量（如使用match参数筛选指标）
+- 当工具返回大量数据时，系统会自动截断过长内容
+- 关注最重要的数据，避免一次性获取全部数据
+- 根据任务需求选择合适的查询参数
 
 输出要求:
 - 清晰说明每个步骤的目的和方法
@@ -359,4 +372,26 @@ func (s *Session) SetToolDefs(toolDefs []tools.ToolDefinition) {
 // GetSystemPromptForDebug 获取系统提示词（用于调试）
 func (s *Session) GetSystemPromptForDebug() string {
 	return s.getSystemPrompt()
+}
+
+// truncateToolResponse 截断工具响应内容，防止消息过长
+func (s *Session) truncateToolResponse(content, toolName string) string {
+	const maxLength = 8000 // 设置最大长度为8000字符
+
+	if len(content) <= maxLength {
+		return content
+	}
+
+	// 截断内容并添加说明
+	truncated := content[:maxLength]
+	suffix := fmt.Sprintf("\n\n[注意: %s 工具响应过长已截断，原始长度: %d 字符，显示前 %d 字符]",
+		toolName, len(content), maxLength)
+
+	util.Debugw("工具响应内容已截断", map[string]interface{}{
+		"tool_name":        toolName,
+		"original_length":  len(content),
+		"truncated_length": maxLength,
+	})
+
+	return truncated + suffix
 }

@@ -52,7 +52,7 @@ var (
 func InitRegistry() error {
 	llmMutex.Lock()
 	defer llmMutex.Unlock()
-	
+
 	if llmRegistry != nil {
 		return nil // 已经初始化
 	}
@@ -82,7 +82,7 @@ func InitRegistry() error {
 func getRegistry() (registry.Registry[*AdapterItem], error) {
 	llmMutex.RLock()
 	defer llmMutex.RUnlock()
-	
+
 	if llmRegistry == nil {
 		return nil, errors.NewError(errors.ErrCodeInternalErr, "LLM registry not initialized")
 	}
